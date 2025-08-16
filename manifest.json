@@ -1,0 +1,10 @@
+{
+	"id": "color-preview",
+	"name": "Color Preview",
+	"version": "1.0.0",
+	"minAppVersion": "0.15.0",
+	"description": "A color preview for HEX, HSL, RGB values in your notes, similar to VSCode's color preview.",
+	"author": "NellowTCS",
+	"authorUrl": "https://github.com/NellowTCS",
+	"isDesktopOnly": false
+}
