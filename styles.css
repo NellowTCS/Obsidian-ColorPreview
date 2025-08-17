@@ -1,11 +1,61 @@
-.color-preview-block {
+/* Color swatch for both editor and reading view */
+.cp-color-swatch {
+    display: inline-block;
+    width: 0.9em;
+    height: 0.9em;
+    border-radius: 3px;
+    margin-right: 0.4em;
+    border: 1px solid var(--background-modifier-border);
+    vertical-align: -0.15em;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+    cursor: help;
+    flex-shrink: 0;
+}
+
+/* Colored text in editor and reading view */
+.cp-colored-text {
+    font-weight: 500;
+}
+
+/* Reading view wrapper for swatch + text */
+.cp-color-wrapper {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 0.2em;
 }
-.color-preview-block span {
-    width: 12px;
-    height: 12px;
-    border: 1px solid #000;
-    border-radius: 2px;
+
+/* Prevent text wrapping issues */
+.cp-color-wrapper .cp-colored-text,
+.cp-color-wrapper span:not(.cp-color-swatch) {
+    white-space: nowrap;
+}
+
+/* Hover effects */
+.cp-color-swatch:hover {
+    border-color: var(--interactive-accent);
+    transform: scale(1.1);
+    transition: all 0.2s ease;
+}
+
+/* Dark mode adjustments */
+.theme-dark .cp-color-swatch {
+    border-color: var(--background-modifier-border-hover);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+/* Light mode adjustments */
+.theme-light .cp-color-swatch {
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+}
+
+/* Ensure visibility for very light/dark colors */
+.cp-colored-text[data-color="#ffffff"],
+.cp-colored-text[data-color="#fff"],
+.cp-colored-text[data-color="white"],
+.cp-colored-text[data-color="#000000"],
+.cp-colored-text[data-color="#000"],
+.cp-colored-text[data-color="black"] {
+    color: var(--text-normal) !important;
+    text-decoration: underline;
+    text-decoration-style: dotted;
 }

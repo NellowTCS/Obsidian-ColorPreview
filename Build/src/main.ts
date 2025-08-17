@@ -1,542 +1,518 @@
-import { Plugin, PluginSettingTab, Setting } from "obsidian";
-import { EditorView, Decoration, DecorationSet, ViewPlugin, ViewUpdate, WidgetType } from "@codemirror/view";
-import { RangeSetBuilder } from "@codemirror/state";
+import {
+	App,
+	MarkdownPostProcessorContext,
+	Plugin,
+	PluginSettingTab,
+	Setting,
+} from "obsidian";
+import {
+	Decoration,
+	DecorationSet,
+	EditorView,
+	ViewPlugin,
+	ViewUpdate,
+	WidgetType,
+} from "@codemirror/view";
+import { Extension, RangeSetBuilder } from "@codemirror/state";
 
-// Plugin Settings Interface
+/** Settings */
 interface ColorPreviewSettings {
-    useColoredText: boolean;
-    showInCodeBlocks: boolean;
-    previewSize: number;
-    showColorNames: boolean;
-    borderStyle: 'solid' | 'none' | 'dotted';
-    previewPosition: 'before' | 'after' | 'replace';
+	showSwatchInEditor: boolean;
+	colorizeTextInEditor: boolean;
+	enableInReadingView: boolean;
 }
 
-// Default Settings
 const DEFAULT_SETTINGS: ColorPreviewSettings = {
-    useColoredText: false,
-    showInCodeBlocks: false,
-    previewSize: 12,
-    showColorNames: true,
-    borderStyle: 'solid',
-    previewPosition: 'before',
+	showSwatchInEditor: true,
+	colorizeTextInEditor: false,
+	enableInReadingView: true,
 };
 
-/**
- * Enhanced regex matcher for various color formats
- * Supports: hex (3,4,6,8 digits), rgb, rgba, hsl, hsla, named colors
- */
-const colorRegex = /(\\?#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8}))|(rgba?\(\s*(?:\d{1,3}(?:\.\d+)?%?|\d*\.\d+%?)\s*,\s*(?:\d{1,3}(?:\.\d+)?%?|\d*\.\d+%?)\s*,\s*(?:\d{1,3}(?:\.\d+)?%?|\d*\.\d+%?)\s*(?:,\s*(?:0|0?\.\d+|1(?:\.0+)?))?\s*\))|(hsla?\(\s*(?:\d{1,3}(?:\.\d+)?)\s*,\s*(?:\d{1,3}(?:\.\d+)?%)\s*,\s*(?:\d{1,3}(?:\.\d+)?%)\s*(?:,\s*(?:0|0?\.\d+|1(?:\.0+)?))?\s*\))|(?:\b(?:red|green|blue|yellow|orange|purple|pink|brown|black|white|gray|grey|cyan|magenta|lime|maroon|navy|olive|teal|silver|aqua|fuchsia|indigo|violet|gold|coral|salmon|khaki|plum|orchid|crimson|azure|beige|bisque|chocolate|firebrick|forestgreen|hotpink|lavender|lightblue|lightgreen|lightgray|lightpink|lightyellow|mediumblue|mediumseagreen|midnightblue|orange|orangered|palegreen|peachpuff|rosybrown|royalblue|seagreen|skyblue|slateblue|slategray|springgreen|steelblue|tomato|turquoise|wheat|whitesmoke|yellowgreen)\b)/gi;
+/** Enhanced regex for supported colors */
+const COLOR_REGEX =
+	/(?:#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b|(?:rgba?|hsla?)\(\s*[^)]+\))/g;
 
-/**
- * CSS named colors for validation
- */
-const namedColors = new Set([
-    'red', 'green', 'blue', 'yellow', 'orange', 'purple', 'pink', 'brown', 'black', 'white',
-    'gray', 'grey', 'cyan', 'magenta', 'lime', 'maroon', 'navy', 'olive', 'teal', 'silver',
-    'aqua', 'fuchsia', 'indigo', 'violet', 'gold', 'coral', 'salmon', 'khaki', 'plum', 'orchid',
-    'crimson', 'azure', 'beige', 'bisque', 'chocolate', 'firebrick', 'forestgreen', 'hotpink',
-    'lavender', 'lightblue', 'lightgreen', 'lightgray', 'lightpink', 'lightyellow', 'mediumblue',
-    'mediumseagreen', 'midnightblue', 'orangered', 'palegreen', 'peachpuff', 'rosybrown',
-    'royalblue', 'seagreen', 'skyblue', 'slateblue', 'slategray', 'springgreen', 'steelblue',
-    'tomato', 'turquoise', 'wheat', 'whitesmoke', 'yellowgreen'
-]);
+/** Validate if color is renderable */
+function isValidColor(colorStr: string): boolean {
+	const testElement = document.createElement("div");
+	testElement.style.color = "";
+	testElement.style.color = colorStr;
+	return testElement.style.color !== "";
+}
 
+/** Check if color is too light (will be invisible on light backgrounds) */
+function isColorTooLight(colorStr: string): boolean {
+	const testElement = document.createElement("div");
+	testElement.style.color = colorStr;
+	document.body.appendChild(testElement);
+
+	const computedColor = getComputedStyle(testElement).color;
+	document.body.removeChild(testElement);
+
+	// Parse RGB values
+	const rgbMatch = computedColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+	if (!rgbMatch) return false;
+
+	const [, r, g, b] = rgbMatch.map(Number);
+
+	// Calculate luminance (perceived brightness)
+	const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+
+	// Consider colors with luminance > 0.8 as too light
+	return luminance > 0.8;
+}
+
+/** Check if color is too dark (will be invisible on dark backgrounds) */
+function isColorTooDark(colorStr: string): boolean {
+	const testElement = document.createElement("div");
+	testElement.style.color = colorStr;
+	document.body.appendChild(testElement);
+
+	const computedColor = getComputedStyle(testElement).color;
+	document.body.removeChild(testElement);
+
+	// Parse RGB values
+	const rgbMatch = computedColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+	if (!rgbMatch) return false;
+
+	const [, r, g, b] = rgbMatch.map(Number);
+
+	// Calculate luminance
+	const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+
+	// Consider colors with luminance < 0.2 as too dark
+	return luminance < 0.2;
+}
+
+/** Color match interface */
+interface ColorMatch {
+	from: number;
+	to: number;
+	color: string;
+}
+
+/** Swatch widget */
+class ColorSwatchWidget extends WidgetType {
+	constructor(private color: string) {
+		super();
+	}
+
+	toDOM(): HTMLElement {
+		const swatch = document.createElement("span");
+		swatch.className = "cp-color-swatch";
+		swatch.style.backgroundColor = this.color;
+		swatch.setAttribute("data-color", this.color);
+		return swatch;
+	}
+
+	ignoreEvent(): boolean {
+		return true;
+	}
+
+	eq(other: ColorSwatchWidget): boolean {
+		return this.color === other.color;
+	}
+}
+
+/** Find all color matches in visible ranges */
+function findColorMatches(view: EditorView): ColorMatch[] {
+	const matches: ColorMatch[] = [];
+
+	for (const range of view.visibleRanges) {
+		const text = view.state.doc.sliceString(range.from, range.to);
+		let match: RegExpExecArray | null;
+
+		COLOR_REGEX.lastIndex = 0;
+		while ((match = COLOR_REGEX.exec(text)) !== null) {
+			const colorStr = match[0];
+
+			if (isValidColor(colorStr)) {
+				matches.push({
+					from: range.from + match.index,
+					to: range.from + match.index + colorStr.length,
+					color: colorStr,
+				});
+			}
+		}
+	}
+
+	return matches.sort((a, b) => a.from - b.from);
+}
+
+/** Create decorations from color matches */
+function createDecorations(
+	matches: ColorMatch[],
+	settings: ColorPreviewSettings
+): DecorationSet {
+	const builder = new RangeSetBuilder<Decoration>();
+
+	// Create all decorations and sort them properly
+	const decorations: {
+		pos: number;
+		decoration: Decoration;
+		isPoint: boolean;
+	}[] = [];
+
+	for (const match of matches) {
+		// Add swatch widget (point decoration)
+		if (settings.showSwatchInEditor) {
+			decorations.push({
+				pos: match.from,
+				decoration: Decoration.widget({
+					widget: new ColorSwatchWidget(match.color),
+					side: -1, // Place before the text
+				}),
+				isPoint: true,
+			});
+		}
+
+		// Add text coloring (range decoration)
+		if (settings.colorizeTextInEditor) {
+			// Only colorize if the color won't be invisible
+			const shouldColorize =
+				!isColorTooLight(match.color) && !isColorTooDark(match.color);
+			if (shouldColorize) {
+				decorations.push({
+					pos: match.from,
+					decoration: Decoration.mark({
+						class: "cp-colored-text",
+						attributes: {
+							style: `color: ${match.color} !important;`,
+							"data-color": match.color,
+						},
+					}),
+					isPoint: false,
+				});
+			}
+		}
+	}
+
+	// Sort decorations: point decorations first (by position), then range decorations
+	decorations.sort((a, b) => {
+		if (a.pos !== b.pos) return a.pos - b.pos;
+		if (a.isPoint !== b.isPoint) return a.isPoint ? -1 : 1;
+		return 0;
+	});
+
+	// Add decorations to builder
+	for (const { pos, decoration, isPoint } of decorations) {
+		if (isPoint) {
+			builder.add(pos, pos, decoration);
+		} else {
+			// Find the matching range for this position
+			const match = matches.find((m) => m.from === pos);
+			if (match) {
+				builder.add(match.from, match.to, decoration);
+			}
+		}
+	}
+
+	return builder.finish();
+}
+
+/** ViewPlugin class */
+class ColorPreviewViewPlugin {
+	decorations: DecorationSet;
+	private lastSettingsHash: string;
+
+	constructor(
+		private view: EditorView,
+		private getSettings: () => ColorPreviewSettings
+	) {
+		this.lastSettingsHash = this.getSettingsHash();
+		this.decorations = this.buildDecorations();
+	}
+
+	update(update: ViewUpdate) {
+		const currentSettingsHash = this.getSettingsHash();
+		const settingsChanged = currentSettingsHash !== this.lastSettingsHash;
+
+		if (
+			update.docChanged ||
+			update.viewportChanged ||
+			update.geometryChanged ||
+			settingsChanged
+		) {
+			this.lastSettingsHash = currentSettingsHash;
+			this.decorations = this.buildDecorations();
+		}
+	}
+
+	private getSettingsHash(): string {
+		const settings = this.getSettings();
+		return JSON.stringify({
+			swatch: settings.showSwatchInEditor,
+			colorize: settings.colorizeTextInEditor,
+		});
+	}
+
+	private buildDecorations(): DecorationSet {
+		try {
+			const matches = findColorMatches(this.view);
+			return createDecorations(matches, this.getSettings());
+		} catch (error) {
+			console.error("ColorPreview: Error building decorations:", error);
+			return Decoration.none;
+		}
+	}
+}
+
+/** Create the ViewPlugin */
+function createColorPreviewPlugin(settings: ColorPreviewSettings) {
+	// Create a function that returns current settings to allow dynamic updates
+	const getSettings = () => settings;
+
+	return ViewPlugin.fromClass(
+		class extends ColorPreviewViewPlugin {
+			constructor(view: EditorView) {
+				super(view, getSettings);
+			}
+		},
+		{
+			decorations: (plugin) => plugin.decorations,
+		}
+	);
+}
+
+/** Process reading view */
+function processReadingView(
+	element: HTMLElement,
+	settings: ColorPreviewSettings
+): void {
+	// First, clean up any existing color previews to prevent duplicates
+	element
+		.querySelectorAll(".cp-color-wrapper, .cp-color-swatch")
+		.forEach((el) => {
+			const parent = el.parentNode;
+			if (parent && el.textContent) {
+				parent.replaceChild(
+					document.createTextNode(el.textContent.replace(/^\s*/, "")),
+					el
+				);
+			}
+		});
+
+	// Normalize text nodes after cleanup
+	element.normalize();
+
+	const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, {
+		acceptNode: (node) => {
+			// Skip if inside code blocks
+			if (node.parentElement?.closest("code, pre")) {
+				return NodeFilter.FILTER_REJECT;
+			}
+			// Skip if already processed
+			if (node.parentElement?.classList.contains("cp-color-wrapper")) {
+				return NodeFilter.FILTER_REJECT;
+			}
+			// Only accept nodes that might contain colors
+			return node.nodeValue && COLOR_REGEX.test(node.nodeValue)
+				? NodeFilter.FILTER_ACCEPT
+				: NodeFilter.FILTER_REJECT;
+		},
+	});
+
+	const textNodes: Text[] = [];
+	let node: Node | null;
+	while ((node = walker.nextNode())) {
+		textNodes.push(node as Text);
+	}
+
+	for (const textNode of textNodes) {
+		const text = textNode.nodeValue || "";
+		const fragment = document.createDocumentFragment();
+
+		let lastIndex = 0;
+		let match: RegExpExecArray | null;
+
+		COLOR_REGEX.lastIndex = 0;
+		while ((match = COLOR_REGEX.exec(text)) !== null) {
+			// Add text before match
+			if (match.index > lastIndex) {
+				fragment.appendChild(
+					document.createTextNode(text.slice(lastIndex, match.index))
+				);
+			}
+
+			const colorStr = match[0];
+			if (isValidColor(colorStr)) {
+				// Create wrapper for swatch + text
+				const wrapper = document.createElement("span");
+				wrapper.className = "cp-color-wrapper";
+
+				// Always show swatch in reading view
+				const swatch = document.createElement("span");
+				swatch.className = "cp-color-swatch";
+				swatch.style.backgroundColor = colorStr;
+				swatch.setAttribute("data-color", colorStr);
+				wrapper.appendChild(swatch);
+
+				// Create text element - colorized based on settings
+				const textElement = document.createElement("span");
+				textElement.textContent = colorStr;
+				textElement.setAttribute("data-color", colorStr);
+
+				// Only colorize if enabled AND color won't be invisible
+				if (
+					settings.colorizeTextInEditor &&
+					!isColorTooLight(colorStr) &&
+					!isColorTooDark(colorStr)
+				) {
+					textElement.className = "cp-colored-text";
+					textElement.style.color = colorStr;
+				}
+
+				wrapper.appendChild(textElement);
+				fragment.appendChild(wrapper);
+			} else {
+				// Invalid color, add as plain text
+				fragment.appendChild(document.createTextNode(colorStr));
+			}
+
+			lastIndex = match.index + colorStr.length;
+		}
+
+		// Add remaining text
+		if (lastIndex < text.length) {
+			fragment.appendChild(
+				document.createTextNode(text.slice(lastIndex))
+			);
+		}
+
+		textNode.replaceWith(fragment);
+	}
+}
+
+/** Main plugin class */
 export default class ColorPreviewPlugin extends Plugin {
-    settings: ColorPreviewSettings;
+	settings: ColorPreviewSettings = { ...DEFAULT_SETTINGS };
+	private currentExtension: Extension | null = null;
 
-    async onload() {
-        await this.loadSettings();
-        console.log("Color Preview Plugin loaded");
+	async onload() {
+		await this.loadSettings();
 
-        this.addSettingTab(new ColorPreviewSettingTab(this.app, this));
+		// Register editor extension
+		this.registerEditorExtensions();
 
-        // Reading Mode processor
-        this.registerMarkdownPostProcessor((element) => {
-            this.addReadingModePreviews(element);
-        });
+		// Register reading view processor
+		this.registerMarkdownPostProcessor(
+			(element: HTMLElement, _context: MarkdownPostProcessorContext) => {
+				if (this.settings.enableInReadingView) {
+					processReadingView(element, this.settings);
+				}
+			}
+		);
 
-        // Live Preview decorations
-        this.registerEditorExtension(colorPreviewPlugin(this));
+		// Add settings tab
+		this.addSettingTab(new ColorPreviewSettingTab(this.app, this));
+	}
 
-        // Add CSS styles
-        this.addStyles();
-    }
+	private registerEditorExtensions() {
+		this.currentExtension = createColorPreviewPlugin(this.settings);
+		this.registerEditorExtension(this.currentExtension);
+	}
 
-    async loadSettings() {
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-    }
+	async loadSettings() {
+		this.settings = Object.assign(
+			{},
+			DEFAULT_SETTINGS,
+			await this.loadData()
+		);
+	}
 
-    async saveSettings() {
-        await this.saveData(this.settings);
-        this.updateStyles();
-    }
+	async saveSettings() {
+		await this.saveData(this.settings);
 
-    addStyles() {
-        const style = document.createElement('style');
-        style.id = 'color-preview-plugin-styles';
-        this.updateStyleContent(style);
-        document.head.appendChild(style);
-    }
+		// Force refresh of all editor views
+		this.app.workspace.iterateAllLeaves((leaf) => {
+			if (leaf.view.getViewType() === "markdown") {
+				const markdownView = leaf.view as any;
+				if (markdownView.editor?.cm) {
+					// Force CodeMirror to rebuild decorations
+					const cm = markdownView.editor.cm;
+					cm.dispatch({
+						effects: [],
+						changes: [],
+					});
+				}
+			}
+		});
 
-    updateStyles() {
-        const existingStyle = document.getElementById('color-preview-plugin-styles');
-        if (existingStyle) {
-            this.updateStyleContent(existingStyle);
-        }
-    }
+		// Also refresh reading view by re-processing all markdown elements
+		setTimeout(() => {
+			document
+				.querySelectorAll(".markdown-preview-view")
+				.forEach((el) => {
+					// Remove existing color previews
+					el.querySelectorAll(
+						".cp-color-wrapper, .cp-color-swatch"
+					).forEach((colorEl) => {
+						const parent = colorEl.parentNode;
+						if (parent && colorEl.textContent) {
+							parent.replaceChild(
+								document.createTextNode(colorEl.textContent),
+								colorEl
+							);
+						}
+					});
 
-    updateStyleContent(styleElement: HTMLElement) {
-        const borderStyle = this.settings.borderStyle === 'none' ? 'none' : 
-                           this.settings.borderStyle === 'dotted' ? '1px dotted var(--text-muted)' : 
-                           '1px solid var(--text-muted)';
-        
-        styleElement.textContent = `
-            .color-preview-block {
-                display: inline-flex;
-                align-items: center;
-                gap: 4px;
-                margin: 0 2px;
-                vertical-align: middle;
-            }
-            
-            .color-preview-block .color-square {
-                display: inline-block;
-                width: ${this.settings.previewSize}px;
-                height: ${this.settings.previewSize}px;
-                border: ${borderStyle};
-                border-radius: 2px;
-                flex-shrink: 0;
-                box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
-                transition: transform 0.1s ease;
-            }
-            
-            .color-preview-block .color-square:hover {
-                transform: scale(1.2);
-                z-index: 10;
-                position: relative;
-            }
-            
-            .color-preview-block .color-label {
-                font-size: 0.9em;
-                opacity: 0.8;
-            }
-            
-            .color-preview-replace {
-                display: inline-flex;
-                align-items: center;
-                gap: 2px;
-                background: var(--background-secondary);
-                padding: 1px 4px;
-                border-radius: 3px;
-                border: 1px solid var(--background-modifier-border);
-            }
-            
-            .color-preview-colored-text {
-                font-weight: 500;
-                text-shadow: 0 0 1px rgba(0, 0, 0, 0.3);
-            }
-        `;
-    }
-
-    /**
-     * Validates if a color string is valid
-     */
-    isValidColor(color: string): boolean {
-        if (namedColors.has(color.toLowerCase())) {
-            return true;
-        }
-        
-        // Create a temporary element to test color validity
-        const testElement = document.createElement('div');
-        testElement.style.color = color;
-        return testElement.style.color !== '';
-    }
-
-    /**
-     * Normalizes color format for display
-     */
-    normalizeColor(colorRaw: string): string {
-        return colorRaw.startsWith("\\") ? colorRaw.slice(1) : colorRaw;
-    }
-
-    /**
-     * Creates color preview element for reading mode
-     */
-    createColorPreview(color: string): DocumentFragment | HTMLElement {
-        if (this.settings.useColoredText) {
-            const span = document.createElement("span");
-            span.className = "color-preview-colored-text";
-            span.style.color = color;
-            span.textContent = this.settings.showColorNames ? color : "";
-            return span;
-        }
-
-        if (this.settings.previewPosition === 'replace') {
-            const wrapper = document.createElement("span");
-            wrapper.className = "color-preview-replace";
-
-            const blockWrapper = document.createElement("span");
-            blockWrapper.className = "color-preview-block";
-
-            const block = document.createElement("span");
-            block.className = "color-square";
-            block.style.backgroundColor = color;
-            block.title = `Color: ${color}`;
-
-            blockWrapper.appendChild(block);
-
-            if (this.settings.showColorNames) {
-                const label = document.createElement("span");
-                label.className = "color-label";
-                label.textContent = color;
-                blockWrapper.appendChild(label);
-            }
-
-            wrapper.appendChild(blockWrapper);
-            return wrapper;
-        } else {
-            const fragment = document.createDocumentFragment();
-            
-            const blockWrapper = document.createElement("span");
-            blockWrapper.className = "color-preview-block";
-
-            const block = document.createElement("span");
-            block.className = "color-square";
-            block.style.backgroundColor = color;
-            block.title = `Color: ${color}`;
-
-            blockWrapper.appendChild(block);
-
-            if (this.settings.showColorNames) {
-                const label = document.createElement("span");
-                label.className = "color-label";
-                label.textContent = color;
-                blockWrapper.appendChild(label);
-            }
-
-            fragment.appendChild(blockWrapper);
-            if (this.settings.previewPosition === 'after' && this.settings.showColorNames) {
-                fragment.appendChild(document.createTextNode(color));
-            }
-            return fragment;
-        }
-    }
-
-    addReadingModePreviews(el: HTMLElement) {
-        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-        let node: Text | null;
-
-        while ((node = walker.nextNode() as Text | null)) {
-            const parent = node.parentElement;
-            if (!parent) continue;
-
-            // Skip code blocks unless setting allows
-            const isInCode = parent.tagName === "CODE" || parent.tagName === "PRE" || 
-                           parent.closest('code') || parent.closest('pre');
-            if (isInCode && !this.settings.showInCodeBlocks) continue;
-
-            const text = node.nodeValue;
-            if (!text) continue;
-
-            const matches = [...text.matchAll(colorRegex)];
-            if (matches.length === 0) continue;
-
-            const fragment = document.createDocumentFragment();
-            let lastIndex = 0;
-
-            for (const match of matches) {
-                const colorRaw = match[0];
-                const color = this.normalizeColor(colorRaw);
-                const start = match.index || 0;
-
-                // Validate color
-                if (!this.isValidColor(color)) continue;
-
-                // Add text before match
-                if (start > lastIndex) {
-                    fragment.appendChild(document.createTextNode(text.slice(lastIndex, start)));
-                }
-
-                // Add color preview
-                const preview = this.createColorPreview(color);
-                if (this.settings.previewPosition === 'replace') {
-                    fragment.appendChild(preview as HTMLElement);
-                } else {
-                    fragment.appendChild(preview as DocumentFragment);
-                    if (this.settings.previewPosition === 'after') {
-                        // Original text is shown, preview is added after
-                        fragment.appendChild(document.createTextNode(colorRaw));
-                    }
-                }
-
-                lastIndex = start + colorRaw.length;
-            }
-
-            // Add remaining text
-            if (lastIndex < text.length) {
-                fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
-            }
-
-            parent.replaceChild(fragment, node);
-        }
-    }
-
-    onunload() {
-        // Clean up styles
-        const styleElement = document.getElementById('color-preview-plugin-styles');
-        if (styleElement) {
-            styleElement.remove();
-        }
-    }
+					// Re-process if enabled
+					if (this.settings.enableInReadingView) {
+						processReadingView(el as HTMLElement, this.settings);
+					}
+				});
+		}, 50);
+	}
 }
 
-// ---------------- Live Preview CodeMirror Plugin ----------------
-
-const colorPreviewPlugin = (pluginInstance: ColorPreviewPlugin) =>
-    ViewPlugin.fromClass(
-        class {
-            decorations: DecorationSet;
-
-            constructor(view: EditorView) {
-                this.decorations = this.buildDecorations(view);
-            }
-
-            update(update: ViewUpdate) {
-                if (update.docChanged || update.viewportChanged) {
-                    this.decorations = this.buildDecorations(update.view);
-                }
-            }
-
-            buildDecorations(view: EditorView) {
-                const builder = new RangeSetBuilder<Decoration>();
-
-                for (const { from, to } of view.visibleRanges) {
-                    const text = view.state.doc.sliceString(from, to);
-                    const matches = [...text.matchAll(colorRegex)];
-
-                    for (const match of matches) {
-                        const colorRaw = match[0];
-                        const color = pluginInstance.normalizeColor(colorRaw);
-                        const start = from + (match.index || 0);
-
-                        // Skip invalid colors
-                        if (!pluginInstance.isValidColor(color)) continue;
-
-                        // Skip code blocks unless setting allows
-                        const lineText = view.state.doc.lineAt(start).text;
-                        const isInCode = lineText.includes('```') || lineText.trim().startsWith('    ');
-                        if (isInCode && !pluginInstance.settings.showInCodeBlocks) continue;
-
-                        if (pluginInstance.settings.useColoredText) {
-                            const deco = Decoration.mark({
-                                attributes: { 
-                                    style: `color: ${color}; font-weight: 500; text-shadow: 0 0 1px rgba(0, 0, 0, 0.3);`,
-                                    class: 'color-preview-colored-text'
-                                },
-                            });
-                            builder.add(start, start + colorRaw.length, deco);
-                        } else {
-                            const position = pluginInstance.settings.previewPosition === 'after' ? 1 : -1;
-                            const deco = Decoration.widget({
-                                widget: new ColorWidget(color, pluginInstance.settings),
-                                side: position,
-                            });
-                            
-                            const insertPos = pluginInstance.settings.previewPosition === 'after' ? 
-                                            start + colorRaw.length : start;
-                            builder.add(insertPos, insertPos, deco);
-                        }
-                    }
-                }
-
-                return builder.finish();
-            }
-        },
-        {
-            decorations: (v) => v.decorations,
-        }
-    );
-
-class ColorWidget extends WidgetType {
-    color: string;
-    settings: ColorPreviewSettings;
-
-    constructor(color: string, settings: ColorPreviewSettings) {
-        super();
-        this.color = color;
-        this.settings = settings;
-    }
-
-    toDOM() {
-        const wrapper = document.createElement("span");
-        wrapper.className = "color-preview-block";
-        wrapper.style.display = "inline-flex";
-        wrapper.style.alignItems = "center";
-        wrapper.style.gap = "4px";
-        wrapper.style.margin = "0 2px";
-
-        const square = document.createElement("span");
-        square.className = "color-square";
-        square.style.display = "inline-block";
-        square.style.width = `${this.settings.previewSize}px`;
-        square.style.height = `${this.settings.previewSize}px`;
-        square.style.borderRadius = "2px";
-        square.style.backgroundColor = this.color;
-        square.style.flexShrink = "0";
-        square.title = `Color: ${this.color}`;
-
-        // Apply border style
-        if (this.settings.borderStyle === 'none') {
-            square.style.border = 'none';
-        } else if (this.settings.borderStyle === 'dotted') {
-            square.style.border = '1px dotted #666';
-        } else {
-            square.style.border = '1px solid #666';
-        }
-
-        wrapper.appendChild(square);
-
-        // Add label if enabled
-        if (this.settings.showColorNames && this.settings.previewPosition !== 'replace') {
-            const label = document.createElement("span");
-            label.className = "color-label";
-            label.style.fontSize = "0.9em";
-            label.style.opacity = "0.8";
-            label.textContent = this.color;
-            wrapper.appendChild(label);
-        }
-
-        return wrapper;
-    }
-
-    ignoreEvent() {
-        return true;
-    }
-}
-
-// ---------------- Settings Tab ----------------
-
+/** Settings tab */
 class ColorPreviewSettingTab extends PluginSettingTab {
-    plugin: ColorPreviewPlugin;
+	constructor(app: App, private plugin: ColorPreviewPlugin) {
+		super(app, plugin);
+	}
 
-    constructor(app: any, plugin: ColorPreviewPlugin) {
-        super(app, plugin);
-        this.plugin = plugin;
-    }
+	display(): void {
+		const { containerEl } = this;
+		containerEl.empty();
 
-    display(): void {
-        const { containerEl } = this;
-        containerEl.empty();
+		containerEl.createEl("h2", { text: "Color Preview Settings" });
 
-        containerEl.createEl("h2", { text: "Color Preview Settings" });
+		new Setting(containerEl)
+			.setName("Show color swatch")
+			.setDesc("Display a small color preview chip before color values")
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.showSwatchInEditor)
+					.onChange(async (value) => {
+						this.plugin.settings.showSwatchInEditor = value;
+						await this.plugin.saveSettings();
+					})
+			);
 
-        // Preview style setting
-        new Setting(containerEl)
-            .setName("Preview Style")
-            .setDesc("Choose how colors are displayed")
-            .addDropdown((dropdown) =>
-                dropdown
-                    .addOption("blocks", "Color blocks with labels")
-                    .addOption("colored-text", "Colored text")
-                    .setValue(this.plugin.settings.useColoredText ? "colored-text" : "blocks")
-                    .onChange(async (value) => {
-                        this.plugin.settings.useColoredText = value === "colored-text";
-                        await this.plugin.saveSettings();
-                        this.plugin.app.workspace.trigger("refresh");
-                    })
-            );
+		new Setting(containerEl)
+			.setName("Colorize text")
+			.setDesc(
+				"Apply the actual color to the text (e.g., #ff0000 appears red)"
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.colorizeTextInEditor)
+					.onChange(async (value) => {
+						this.plugin.settings.colorizeTextInEditor = value;
+						await this.plugin.saveSettings();
+					})
+			);
 
-        // Preview position setting (only for block style)
-        if (!this.plugin.settings.useColoredText) {
-            new Setting(containerEl)
-                .setName("Preview Position")
-                .setDesc("Where to show the color preview")
-                .addDropdown((dropdown) =>
-                    dropdown
-                        .addOption("before", "Before color text")
-                        .addOption("after", "After color text")
-                        .addOption("replace", "Replace color text")
-                        .setValue(this.plugin.settings.previewPosition)
-                        .onChange(async (value) => {
-                            this.plugin.settings.previewPosition = value as 'before' | 'after' | 'replace';
-                            await this.plugin.saveSettings();
-                            this.plugin.app.workspace.trigger("refresh");
-                        })
-                );
-        }
-
-        // Preview size setting
-        new Setting(containerEl)
-            .setName("Preview Size")
-            .setDesc("Size of color preview squares in pixels")
-            .addSlider((slider) =>
-                slider
-                    .setLimits(8, 24, 1)
-                    .setValue(this.plugin.settings.previewSize)
-                    .setDynamicTooltip()
-                    .onChange(async (value) => {
-                        this.plugin.settings.previewSize = value;
-                        await this.plugin.saveSettings();
-                        this.plugin.app.workspace.trigger("refresh");
-                    })
-            );
-
-        // Border style setting
-        new Setting(containerEl)
-            .setName("Border Style")
-            .setDesc("Style of border around color previews")
-            .addDropdown((dropdown) =>
-                dropdown
-                    .addOption("solid", "Solid border")
-                    .addOption("dotted", "Dotted border")
-                    .addOption("none", "No border")
-                    .setValue(this.plugin.settings.borderStyle)
-                    .onChange(async (value) => {
-                        this.plugin.settings.borderStyle = value as 'solid' | 'none' | 'dotted';
-                        await this.plugin.saveSettings();
-                        this.plugin.app.workspace.trigger("refresh");
-                    })
-            );
-
-        // Show color names setting
-        new Setting(containerEl)
-            .setName("Show Color Names")
-            .setDesc("Display color values alongside previews")
-            .addToggle((toggle) =>
-                toggle
-                    .setValue(this.plugin.settings.showColorNames)
-                    .onChange(async (value) => {
-                        this.plugin.settings.showColorNames = value;
-                        await this.plugin.saveSettings();
-                        this.plugin.app.workspace.trigger("refresh");
-                    })
-            );
-
-        // Show in code blocks setting
-        new Setting(containerEl)
-            .setName("Show in Code Blocks")
-            .setDesc("Enable color previews inside code blocks and inline code")
-            .addToggle((toggle) =>
-                toggle
-                    .setValue(this.plugin.settings.showInCodeBlocks)
-                    .onChange(async (value) => {
-                        this.plugin.settings.showInCodeBlocks = value;
-                        await this.plugin.saveSettings();
-                        this.plugin.app.workspace.trigger("refresh");
-                    })
-            );
-
-        // Add a sample section
-        containerEl.createEl("h3", { text: "Preview Examples" });
-        const exampleEl = containerEl.createEl("div", { 
-            text: "Sample colors: #ff0000 rgb(0, 255, 0) hsl(240, 100%, 50%) blue",
-            cls: "setting-item-description"
-        });
-        
-        // Apply previews to the sample
-        setTimeout(() => {
-            this.plugin.addReadingModePreviews(exampleEl);
-        }, 100);
-    }
+		new Setting(containerEl)
+			.setName("Enable in reading view")
+			.setDesc("Show color previews in the rendered markdown view")
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.enableInReadingView)
+					.onChange(async (value) => {
+						this.plugin.settings.enableInReadingView = value;
+						await this.plugin.saveSettings();
+					})
+			);
+	}
 }

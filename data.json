@@ -1,8 +1,14 @@
 {
-  "useColoredText": false,
+  "showSwatchInEditor": true,
+  "colorizeTextInEditor": false,
+  "enableInReadingView": true,
+  "useColoredText": true,
   "showInCodeBlocks": true,
-  "previewSize": 12,
+  "previewSize": 11,
   "showColorNames": true,
-  "borderStyle": "solid",
-  "previewPosition": "before"
+  "borderStyle": "dotted",
+  "previewPosition": "before",
+  "enableHoverZoom": true,
+  "enableColorPicker": true,
+  "processEscapedColors": true
 }
