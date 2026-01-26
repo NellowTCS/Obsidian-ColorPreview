@@ -1,6 +1,8 @@
 import esbuild from "esbuild";
 import process from "process";
 import builtins from "builtin-modules";
+import fs from "fs/promises";
+import path from "path";
 
 const banner =
 `/*
@@ -11,6 +13,15 @@ if you want to view the source, please visit the github repository of this plugi
 
 const prod = (process.argv[2] === "production");
 
+// Helper function to copy files
+async function copyFile(src, destDir) {
+	const dest = path.join(destDir, path.basename(src));
+	await fs.mkdir(destDir, { recursive: true });
+	await fs.copyFile(src, dest);
+	console.log(`Copied ${src} -> ${dest}`);
+}
+
+// esbuild setup
 const context = await esbuild.context({
 	banner: {
 		js: banner,
@@ -31,7 +42,8 @@ const context = await esbuild.context({
 		"@lezer/common",
 		"@lezer/highlight",
 		"@lezer/lr",
-		...builtins],
+		...builtins
+	],
 	format: "cjs",
 	target: "es2018",
 	logLevel: "info",
@@ -41,9 +53,16 @@ const context = await esbuild.context({
 	minify: prod,
 });
 
+async function copyAssets() {
+	await copyFile("src/styles.css", "dist");
+	await copyFile("manifest.json", "dist");
+}
+
 if (prod) {
 	await context.rebuild();
+	await copyAssets();
 	process.exit(0);
 } else {
 	await context.watch();
+	await copyAssets();
 }
