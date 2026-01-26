@@ -1,4 +1,4 @@
-/**
+/*
  * Represents a parsed color with its position in text
  */
 export interface ColorMatch {
@@ -9,18 +9,11 @@ export interface ColorMatch {
 }
 
 /**
- * Color format patterns with strict boundaries
+ * Combined regex that matches all color formats
+ * Uses alternation with careful ordering (longest/most specific first)
  */
-const COLOR_PATTERNS = {
-	hex3: /\b#[0-9a-fA-F]{3}\b/g,
-	hex4: /\b#[0-9a-fA-F]{4}\b/g,
-	hex6: /\b#[0-9a-fA-F]{6}\b/g,
-	hex8: /\b#[0-9a-fA-F]{8}\b/g,
-	rgb: /\brgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\)/gi,
-	rgba: /\brgba\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*(?:0|1|0?\.\d+)\s*\)/gi,
-	hsl: /\bhsl\(\s*\d{1,3}\s*,\s*\d{1,3}%\s*,\s*\d{1,3}%\s*\)/gi,
-	hsla: /\bhsla\(\s*\d{1,3}\s*,\s*\d{1,3}%\s*,\s*\d{1,3}%\s*,\s*(?:0|1|0?\.\d+)\s*\)/gi,
-};
+const COMBINED_COLOR_REGEX = 
+	/#[0-9a-fA-F]{8}(?![0-9a-fA-F])|#[0-9a-fA-F]{6}(?![0-9a-fA-F])|#[0-9a-fA-F]{4}(?![0-9a-fA-F])|#[0-9a-fA-F]{3}(?![0-9a-fA-F])|rgba?\s*\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*(?:\s*,\s*(?:0|1|0?\.\d+))?\s*\)|hsla?\s*\(\s*\d{1,3}\s*,\s*\d{1,3}%\s*,\s*\d{1,3}%\s*(?:\s*,\s*(?:0|1|0?\.\d+))?\s*\)/gi;
 
 /**
  * Validates if a color string is renderable in CSS
@@ -30,7 +23,6 @@ export function isValidColor(colorStr: string): boolean {
 		return false;
 	}
 
-	// Quick format check before DOM test
 	const trimmed = colorStr.trim();
 	if (!trimmed) return false;
 
@@ -38,9 +30,7 @@ export function isValidColor(colorStr: string): boolean {
 	testElement.style.color = '';
 	testElement.style.color = trimmed;
 	
-	const isValid = testElement.style.color !== '';
-	
-	return isValid;
+	return testElement.style.color !== '';
 }
 
 /**
@@ -84,72 +74,31 @@ export function hasGoodContrast(colorStr: string): boolean {
 
 /**
  * Finds all valid color matches in a text string
- * Uses non-overlapping pattern matching to prevent jumbled results
+ * Uses a single combined regex to prevent overlapping matches
  */
 export function findColorsInText(text: string, startOffset = 0): ColorMatch[] {
 	const matches: ColorMatch[] = [];
-	const processedRanges = new Set<string>();
-
-	// Helper to check if a range overlaps with any processed range
-	const isOverlapping = (start: number, end: number): boolean => {
-		for (let i = start; i < end; i++) {
-			if (processedRanges.has(i.toString())) {
-				return true;
-			}
-		}
-		return false;
-	};
-
-	// Helper to mark a range as processed
-	const markRange = (start: number, end: number): void => {
-		for (let i = start; i < end; i++) {
-			processedRanges.add(i.toString());
-		}
-	};
-
-	// Process each pattern type in order of specificity (longer patterns first)
-	const orderedPatterns: Array<[string, RegExp]> = [
-		['hex8', COLOR_PATTERNS.hex8],
-		['hex6', COLOR_PATTERNS.hex6],
-		['hex4', COLOR_PATTERNS.hex4],
-		['hex3', COLOR_PATTERNS.hex3],
-		['hsla', COLOR_PATTERNS.hsla],
-		['hsl', COLOR_PATTERNS.hsl],
-		['rgba', COLOR_PATTERNS.rgba],
-		['rgb', COLOR_PATTERNS.rgb],
-	];
-
-	for (const [, pattern] of orderedPatterns) {
-		pattern.lastIndex = 0;
-		let match: RegExpExecArray | null;
-
-		while ((match = pattern.exec(text)) !== null) {
-			const matchStart = match.index;
-			const matchEnd = match.index + match[0].length;
-
-			// Skip if this range overlaps with an already processed range
-			if (isOverlapping(matchStart, matchEnd)) {
-				continue;
-			}
-
-			const colorStr = match[0];
-
-			if (isValidColor(colorStr)) {
-				matches.push({
-					from: startOffset + matchStart,
-					to: startOffset + matchEnd,
-					color: colorStr,
-					original: colorStr,
-				});
-
-				// Mark this range as processed
-				markRange(matchStart, matchEnd);
-			}
+	
+	// Reset regex state
+	COMBINED_COLOR_REGEX.lastIndex = 0;
+	
+	let match: RegExpExecArray | null;
+	
+	while ((match = COMBINED_COLOR_REGEX.exec(text)) !== null) {
+		const colorStr = match[0];
+		
+		// Validate the color is actually renderable
+		if (isValidColor(colorStr)) {
+			matches.push({
+				from: startOffset + match.index,
+				to: startOffset + match.index + colorStr.length,
+				color: colorStr,
+				original: colorStr,
+			});
 		}
 	}
 
-	// Sort by position
-	return matches.sort((a, b) => a.from - b.from);
+	return matches;
 }
 
 /**

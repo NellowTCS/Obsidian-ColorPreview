@@ -1,7 +1,4 @@
-// src/main.ts
-
 import { Plugin, MarkdownPostProcessorContext } from 'obsidian';
-import type { Extension } from '@codemirror/state';
 import { ColorPreviewSettings, DEFAULT_SETTINGS } from './types';
 import { createColorPreviewExtension } from './editor/editorExtension';
 import { processReadingView, clearReadingView } from './reading/readingViewProcessor';
@@ -9,21 +6,27 @@ import { ColorPreviewSettingTab } from './ui/settingsTab';
 
 export default class ColorPreviewPlugin extends Plugin {
 	settings: ColorPreviewSettings = { ...DEFAULT_SETTINGS };
-	private editorExtension: Extension | null = null;
 
-	// Plugin initialization
+	/**
+	 * Plugin initialization
+	 */
 	async onload(): Promise<void> {
 		console.log('Loading Color Preview plugin');
 
 		await this.loadSettings();
 
 		// Register editor extension for live preview
-		this.initializeEditorExtension();
+		// Pass the settings object directly - it will be read reactively
+		this.registerEditorExtension(
+			createColorPreviewExtension(() => this.settings)
+		);
 
 		// Register markdown post-processor for reading view
 		this.registerMarkdownPostProcessor(
 			(element: HTMLElement, _context: MarkdownPostProcessorContext) => {
-				this.processMarkdownElement(element);
+				if (this.settings.enableInReadingView) {
+					processReadingView(element, this.settings);
+				}
 			}
 		);
 
@@ -39,23 +42,6 @@ export default class ColorPreviewPlugin extends Plugin {
 	}
 
 	/**
-	 * Initialize the CodeMirror editor extension
-	 */
-	private initializeEditorExtension(): void {
-		this.editorExtension = createColorPreviewExtension(() => this.settings);
-		this.registerEditorExtension(this.editorExtension);
-	}
-
-	/**
-	 * Process a markdown element in reading view
-	 */
-	private processMarkdownElement(element: HTMLElement): void {
-		if (this.settings.enableInReadingView) {
-			processReadingView(element, this.settings);
-		}
-	}
-
-	/**
 	 * Load plugin settings
 	 */
 	async loadSettings(): Promise<void> {
@@ -67,21 +53,16 @@ export default class ColorPreviewPlugin extends Plugin {
 	 * Save plugin settings and refresh views
 	 */
 	async saveSettings(): Promise<void> {
+		console.log('ColorPreview: Saving settings', this.settings);
 		await this.saveData(this.settings);
-		await this.refreshAllViews();
-	}
-
-	/**
-	 * Refresh all editor and reading views
-	 */
-	private async refreshAllViews(): Promise<void> {
-		// Refresh editor views
+		
+		// Force refresh of all editor views
 		this.refreshEditorViews();
 
 		// Refresh reading views with a small delay
 		setTimeout(() => {
 			this.refreshReadingViews();
-		}, 50);
+		}, 100);
 	}
 
 	/**
@@ -89,15 +70,20 @@ export default class ColorPreviewPlugin extends Plugin {
 	 */
 	private refreshEditorViews(): void {
 		this.app.workspace.iterateAllLeaves((leaf) => {
-			if (leaf.view.getViewType() === 'markdown') {
-				const markdownView = leaf.view as any;
+			const view = leaf.view;
+			
+			if (view.getViewType() === 'markdown') {
+				const markdownView = view as any;
 				
 				if (markdownView.editor?.cm) {
 					const cm = markdownView.editor.cm;
-					// Dispatch empty transaction to trigger decoration rebuild
+					
+					// Force a full viewport update
+					cm.requestMeasure();
+					
+					// Dispatch an empty transaction to trigger decoration rebuild
 					cm.dispatch({
 						effects: [],
-						changes: [],
 					});
 				}
 			}

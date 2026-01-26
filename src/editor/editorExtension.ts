@@ -119,10 +119,12 @@ class ColorPreviewViewPlugin {
 		const currentSettings = this.captureSettings();
 		const settingsChanged = currentSettings !== this.settingsSnapshot;
 
+		// Always rebuild on doc changes, viewport changes, or settings changes
 		if (
 			update.docChanged ||
 			update.viewportChanged ||
-			settingsChanged
+			settingsChanged ||
+			update.geometryChanged
 		) {
 			this.settingsSnapshot = currentSettings;
 			this.decorations = this.rebuildDecorations();
@@ -140,7 +142,14 @@ class ColorPreviewViewPlugin {
 	private rebuildDecorations(): DecorationSet {
 		try {
 			const matches = findVisibleColors(this.view);
-			return buildDecorations(matches, this.getSettings());
+			const settings = this.getSettings();
+			
+			// Debug logging
+			if (matches.length > 0) {
+				console.log('ColorPreview: Found', matches.length, 'colors');
+			}
+			
+			return buildDecorations(matches, settings);
 		} catch (error) {
 			console.error('ColorPreview: Failed to build decorations', error);
 			return Decoration.none;
