@@ -1,0 +1,80 @@
+name: Build Obsidian plugin
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Use Node.js 18
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18.x"
+
+      - name: Cache npm
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install dependencies
+        run: npm i
+
+      - name: Build plugin
+        run: npm run build
+
+      - name: Collect dist/main.js and manifest.json and styles.css
+        id: meta
+        run: |
+          set -euo pipefail
+          mkdir -p build-output
+
+          # copy main.js -> build-output/main.js
+          if [ -f "main.js" ]; then
+            cp -v main.js build-output/main.js
+          else
+            echo "Error: main.js not found."
+            ls -la dist || true
+            exit 1
+          fi
+
+          # copy styles.css -> build-output/styles.css
+          if [ -f "styles.css" ]; then
+            cp -v styles.css build-output/styles.css
+          else
+            echo "Error: styles.css not found."
+            ls -la dist || true
+            exit 1
+          fi
+
+          # copy manifest.json from repo root
+          if [ -f "manifest.json" ]; then
+            cp -v manifest.json build-output/manifest.json
+          else
+            echo "Error: manifest.json not found in repository root."
+            exit 2
+          fi
+
+          echo "build-output contents:"
+          ls -la build-output
+
+      - name: Upload artifact (main.js + styles.css+ manifest.json)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs.package_name }}-${{ steps.meta.outputs.package_version }}-${{ github.run_id }}
+          path: |
+            build-output/main.js
+            build-output/styles.css
+            build-output/manifest.json
