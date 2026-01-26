@@ -1,27 +1,43 @@
-/* Color swatch for both editor and reading view */
+/* Color Swatch (used in both editor and reading view) */
 .cp-color-swatch {
   display: inline-block;
   width: 0.9em;
   height: 0.9em;
   border-radius: 3px;
-  margin-right: 0.4em;
+  margin-right: 0.35em;
   border: 1px solid var(--background-modifier-border);
-  vertical-align: -0.15em;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
-  cursor: help;
+  vertical-align: -0.1em;
   flex-shrink: 0;
+  cursor: help;
+  transition: all 0.15s ease-in-out;
+  
+  /* Subtle shadow for depth */
+  box-shadow: 
+    inset 0 0 0 1px rgba(0, 0, 0, 0.08),
+    0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
-/* Colored text in editor and reading view */
+/* Swatch hover effect */
+.cp-color-swatch:hover {
+  transform: scale(1.15);
+  border-color: var(--interactive-accent);
+  box-shadow: 
+    inset 0 0 0 1px rgba(0, 0, 0, 0.1),
+    0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Colored text styling */
 .cp-colored-text {
   font-weight: 500;
+  position: relative;
 }
 
-/* Reading view wrapper for swatch + text */
+/* Reading view wrapper */
 .cp-color-wrapper {
   display: inline-flex;
   align-items: center;
-  gap: 0.2em;
+  gap: 0.25em;
+  white-space: nowrap;
 }
 
 /* Prevent text wrapping issues */
@@ -30,25 +46,51 @@
   white-space: nowrap;
 }
 
-/* Hover effects */
-.cp-color-swatch:hover {
-  border-color: var(--interactive-accent);
-  transform: scale(1.1);
-  transition: all 0.2s ease;
-}
-
-/* Dark mode adjustments */
+/* Dark mode */
 .theme-dark .cp-color-swatch {
   border-color: var(--background-modifier-border-hover);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  box-shadow: 
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
-/* Light mode adjustments */
+.theme-dark .cp-color-swatch:hover {
+  box-shadow: 
+    inset 0 0 0 1px rgba(255, 255, 255, 0.15),
+    0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+/* Light mode */
 .theme-light .cp-color-swatch {
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+  box-shadow: 
+    inset 0 0 0 1px rgba(0, 0, 0, 0.08),
+    0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
-/* Ensure visibility for very light/dark colors */
+.theme-light .cp-color-swatch:hover {
+  box-shadow: 
+    inset 0 0 0 1px rgba(0, 0, 0, 0.12),
+    0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+/* Focus styles for keyboard navigation */
+.cp-color-swatch:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .cp-color-swatch {
+    transition: none;
+  }
+  
+  .cp-color-swatch:hover {
+    transform: none;
+  }
+}
+
+/* Ensure very light/dark colors remain visible */
 .cp-colored-text[data-color="#ffffff"],
 .cp-colored-text[data-color="#fff"],
 .cp-colored-text[data-color="white"],
@@ -58,4 +100,22 @@
   color: var(--text-normal) !important;
   text-decoration: underline;
   text-decoration-style: dotted;
+  text-decoration-color: var(--text-muted);
+}
+
+/* Ensure swatches in editor don't break line height */
+.cm-line .cp-color-swatch {
+  vertical-align: -0.1em;
+}
+
+@media print {
+  .cp-color-swatch {
+    border: 1px solid #000;
+    box-shadow: none;
+  }
+  
+  .cp-colored-text {
+    color: inherit !important;
+    font-weight: normal;
+  }
 }
