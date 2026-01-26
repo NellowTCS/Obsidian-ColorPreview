@@ -41,20 +41,20 @@ jobs:
           set -euo pipefail
           mkdir -p build-output
 
-          # copy main.js -> build-output/main.js
-          if [ -f "main.js" ]; then
-            cp -v main.js build-output/main.js
+          # copy dist/main.js
+          if [ -f "dist/main.js" ]; then
+            cp -v dist/main.js build-output/main.js
           else
-            echo "Error: main.js not found."
+            echo "Error: dist/main.js not found."
             ls -la dist || true
             exit 1
           fi
 
-          # copy styles.css -> build-output/styles.css
-          if [ -f "styles.css" ]; then
-            cp -v styles.css build-output/styles.css
+          # copy dist/styles.css
+          if [ -f "dist/styles.css" ]; then
+            cp -v dist/styles.css build-output/styles.css
           else
-            echo "Error: styles.css not found."
+            echo "Error: dist/styles.css not found."
             ls -la dist || true
             exit 1
           fi
@@ -66,6 +66,12 @@ jobs:
             echo "Error: manifest.json not found in repository root."
             exit 2
           fi
+
+          # set outputs for artifact naming (requires jq, already in GitHub runners)
+          PACKAGE_NAME=$(jq -r .name manifest.json)
+          PACKAGE_VERSION=$(jq -r .version manifest.json)
+          echo "package_name=${PACKAGE_NAME}" >> "$GITHUB_OUTPUT"
+          echo "package_version=${PACKAGE_VERSION}" >> "$GITHUB_OUTPUT"
 
           echo "build-output contents:"
           ls -la build-output

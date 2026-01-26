@@ -23,13 +23,19 @@ jobs:
           npm install
           npm run build
 
+      - name: Stage release files
+        run: |
+          mkdir -p build-output
+          cp dist/main.js build-output/
+          cp dist/styles.css build-output/
+          cp manifest.json build-output/
+
       - name: Create release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           tag="${GITHUB_REF#refs/tags/}"
-
           gh release create "$tag" \
             --title="$tag" \
             --draft \
-            main.js manifest.json styles.css
+            build-output/main.js build-output/manifest.json build-output/styles.css
