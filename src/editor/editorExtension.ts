@@ -1,11 +1,16 @@
-import { EditorView, ViewPlugin, ViewUpdate, Decoration, DecorationSet, WidgetType } from '@codemirror/view';
+import {
+	EditorView,
+	ViewPlugin,
+	ViewUpdate,
+	Decoration,
+	DecorationSet,
+	WidgetType,
+} from '@codemirror/view';
 import { RangeSetBuilder } from '@codemirror/state';
 import { findColorsInText, hasGoodContrast, ColorMatch } from '../utils/colorParser';
 import type { ColorPreviewSettings } from '../types';
 
-/**
- * Widget for displaying color swatch in the editor
- */
+// Swatch widget
 class ColorSwatchWidget extends WidgetType {
 	constructor(private readonly color: string) {
 		super();
@@ -29,49 +34,30 @@ class ColorSwatchWidget extends WidgetType {
 	}
 }
 
-/**
- * Find color matches in the current visible range
- */
-function findVisibleColors(view: EditorView): ColorMatch[] {
-	const matches: ColorMatch[] = [];
-
-	for (const { from, to } of view.visibleRanges) {
-		const text = view.state.doc.sliceString(from, to);
-		const rangeMatches = findColorsInText(text, from);
-		matches.push(...rangeMatches);
-	}
-
-	return matches;
-}
-
-/**
- * Build decoration set from color matches
- */
+// Decoration builder
+// collect all (from, to, decoration) triples, sort them once, then feed them to the builder
 function buildDecorations(
 	matches: ColorMatch[],
 	settings: ColorPreviewSettings
 ): DecorationSet {
-	const builder = new RangeSetBuilder<Decoration>();
-
-	// Separate decorations by type for proper ordering
-	const swatchDecorations: Array<{ pos: number; decoration: Decoration }> = [];
-	const markDecorations: Array<{ from: number; to: number; decoration: Decoration }> = [];
+	type Entry = { from: number; to: number; decoration: Decoration };
+	const entries: Entry[] = [];
 
 	for (const match of matches) {
-		// Add swatch widget (point decoration)
 		if (settings.showSwatchInEditor) {
-			swatchDecorations.push({
-				pos: match.from,
+			// Point decoration: from === to === match.from
+			entries.push({
+				from: match.from,
+				to: match.from,
 				decoration: Decoration.widget({
 					widget: new ColorSwatchWidget(match.color),
-					side: -1,
+					side: -1, // render before the character at `from`
 				}),
 			});
 		}
 
-		// Add text coloring (range decoration)
 		if (settings.colorizeTextInEditor && hasGoodContrast(match.color)) {
-			markDecorations.push({
+			entries.push({
 				from: match.from,
 				to: match.to,
 				decoration: Decoration.mark({
@@ -85,88 +71,67 @@ function buildDecorations(
 		}
 	}
 
-	// Add point decorations first
-	swatchDecorations.sort((a, b) => a.pos - b.pos);
-	for (const { pos, decoration } of swatchDecorations) {
-		builder.add(pos, pos, decoration);
-	}
+	// Sort: primary key = from ascending; secondary = to ascending so that
+	// the zero-length point decoration (to === from) comes before the mark
+	// (to > from) when they share the same from.
+	entries.sort((a, b) => a.from - b.from || a.to - b.to);
 
-	// Then add range decorations
-	markDecorations.sort((a, b) => a.from - b.from);
-	for (const { from, to, decoration } of markDecorations) {
+	const builder = new RangeSetBuilder<Decoration>();
+	for (const { from, to, decoration } of entries) {
 		builder.add(from, to, decoration);
 	}
-
 	return builder.finish();
 }
 
-/**
- * Main ViewPlugin for color preview in the editor
- */
+// ViewPlugin
+function collectVisibleMatches(view: EditorView): ColorMatch[] {
+	const matches: ColorMatch[] = [];
+	for (const { from, to } of view.visibleRanges) {
+		const text = view.state.doc.sliceString(from, to);
+		matches.push(...findColorsInText(text, from));
+	}
+	return matches;
+}
+
+function settingsKey(s: ColorPreviewSettings): string {
+	return `${s.showSwatchInEditor}|${s.colorizeTextInEditor}`;
+}
+
 class ColorPreviewViewPlugin {
 	decorations: DecorationSet;
-	private settingsSnapshot: string;
+	private lastSettingsKey: string;
 
 	constructor(
 		private readonly view: EditorView,
 		private readonly getSettings: () => ColorPreviewSettings
 	) {
-		this.settingsSnapshot = this.captureSettings();
-		this.decorations = this.rebuildDecorations();
+		this.lastSettingsKey = settingsKey(this.getSettings());
+		this.decorations = this.rebuild();
 	}
 
 	update(update: ViewUpdate): void {
-		const currentSettings = this.captureSettings();
-		const settingsChanged = currentSettings !== this.settingsSnapshot;
+		const currentKey = settingsKey(this.getSettings());
+		const settingsChanged = currentKey !== this.lastSettingsKey;
 
-		// Always rebuild on doc changes, viewport changes, or settings changes
-		if (
-			update.docChanged ||
-			update.viewportChanged ||
-			settingsChanged ||
-			update.geometryChanged
-		) {
-			this.settingsSnapshot = currentSettings;
-			this.decorations = this.rebuildDecorations();
+		if (update.docChanged || update.viewportChanged || settingsChanged || update.geometryChanged) {
+			this.lastSettingsKey = currentKey;
+			this.decorations = this.rebuild();
 		}
 	}
 
-	private captureSettings(): string {
-		const settings = this.getSettings();
-		return JSON.stringify({
-			swatch: settings.showSwatchInEditor,
-			colorize: settings.colorizeTextInEditor,
-		});
-	}
-
-	private rebuildDecorations(): DecorationSet {
+	private rebuild(): DecorationSet {
 		try {
-			const matches = findVisibleColors(this.view);
-			const settings = this.getSettings();
-			
-			// Debug logging
-			if (matches.length > 0) {
-				console.log('ColorPreview: Found', matches.length, 'colors');
-			}
-			
-			return buildDecorations(matches, settings);
-		} catch (error) {
-			console.error('ColorPreview: Failed to build decorations', error);
+			const matches = collectVisibleMatches(this.view);
+			return buildDecorations(matches, this.getSettings());
+		} catch (err) {
+			console.error('ColorPreview: Failed to build decorations', err);
 			return Decoration.none;
 		}
 	}
-
-	destroy(): void {
-		// Cleanup if needed
-	}
 }
 
-/**
- * Creates the CodeMirror extension for color preview
- */
-export function createColorPreviewExtension(
-	getSettings: () => ColorPreviewSettings
-) {
+// Public factory
+export function createColorPreviewExtension(getSettings: () => ColorPreviewSettings) {
 	return ViewPlugin.fromClass(
 		class extends ColorPreviewViewPlugin {
 			constructor(view: EditorView) {

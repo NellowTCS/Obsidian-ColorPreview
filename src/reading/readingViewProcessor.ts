@@ -1,168 +1,99 @@
-import { findColorsInText, hasGoodContrast, isValidColor } from '../utils/colorParser';
+import { findColorsInText, hasGoodContrast } from '../utils/colorParser';
 import type { ColorPreviewSettings } from '../types';
 
-/**
- * Check if a node should be processed
- */
+// Helpers
 function shouldProcessNode(node: Node): boolean {
-	// Skip code blocks
-	if (node.parentElement?.closest('code, pre')) {
-		return false;
-	}
-
-	// Skip already processed nodes
-	if (node.parentElement?.classList.contains('cp-color-wrapper')) {
-		return false;
-	}
-
-	// Skip if no text content
-	if (!node.nodeValue) {
-		return false;
-	}
-
+	if (!node.nodeValue?.trim()) return false;
+	// Skip code/pre blocks
+	if ((node as Text).parentElement?.closest('code, pre')) return false;
+	// Skip already-processed wrappers
+	if ((node as Text).parentElement?.classList.contains('cp-color-wrapper')) return false;
 	return true;
 }
 
-/**
- * Remove all existing color preview elements
- */
-function cleanupExistingPreviews(element: HTMLElement): void {
-	const previews = element.querySelectorAll('.cp-color-wrapper');
-	
-	previews.forEach((wrapper) => {
-		const textContent = wrapper.textContent || '';
-		const textNode = document.createTextNode(textContent);
-		wrapper.parentNode?.replaceChild(textNode, wrapper);
+function cleanupExistingPreviews(root: HTMLElement): void {
+	// Replace each wrapper with its plain-text content, then normalize.
+	root.querySelectorAll('.cp-color-wrapper').forEach((wrapper) => {
+		const text = document.createTextNode(wrapper.textContent ?? '');
+		wrapper.parentNode?.replaceChild(text, wrapper);
 	});
-
-	// Normalize adjacent text nodes
-	element.normalize();
+	root.normalize();
 }
 
-/**
- * Create a color preview wrapper element
- */
-function createColorElement(
-	colorStr: string,
-	settings: ColorPreviewSettings
-): HTMLElement {
+function createColorElement(colorStr: string, settings: ColorPreviewSettings): HTMLElement {
 	const wrapper = document.createElement('span');
 	wrapper.className = 'cp-color-wrapper';
 
-	// Add swatch
-	const swatch = document.createElement('span');
-	swatch.className = 'cp-color-swatch';
-	swatch.style.backgroundColor = colorStr;
-	swatch.setAttribute('data-color', colorStr);
-	swatch.setAttribute('aria-label', `Color preview: ${colorStr}`);
-	wrapper.appendChild(swatch);
-
-	// Add text
-	const textSpan = document.createElement('span');
-	textSpan.textContent = colorStr;
-	textSpan.setAttribute('data-color', colorStr);
-
-	// Apply coloring if enabled and has good contrast
-	if (settings.colorizeTextInEditor && hasGoodContrast(colorStr)) {
-		textSpan.className = 'cp-colored-text';
-		textSpan.style.color = colorStr;
+	if (settings.showSwatchInEditor) {
+		const swatch = document.createElement('span');
+		swatch.className = 'cp-color-swatch';
+		swatch.style.backgroundColor = colorStr;
+		swatch.setAttribute('aria-label', `Color: ${colorStr}`);
+		wrapper.appendChild(swatch);
 	}
 
-	wrapper.appendChild(textSpan);
+	const label = document.createElement('span');
+	label.textContent = colorStr;
+
+	if (settings.colorizeTextInEditor && hasGoodContrast(colorStr)) {
+		label.className = 'cp-colored-text';
+		label.style.color = colorStr;
+	}
+
+	wrapper.appendChild(label);
 	return wrapper;
 }
 
-/**
- * Process a single text node
- */
-function processTextNode(
-	textNode: Text,
-	settings: ColorPreviewSettings
-): void {
-	const text = textNode.nodeValue || '';
+function processTextNode(node: Text, settings: ColorPreviewSettings): void {
+	const text = node.nodeValue ?? '';
 	const matches = findColorsInText(text);
-
-	if (matches.length === 0) {
-		return;
-	}
+	if (matches.length === 0) return;
 
 	const fragment = document.createDocumentFragment();
-	let lastIndex = 0;
+	let cursor = 0;
 
 	for (const match of matches) {
-		// Add text before match
-		if (match.from > lastIndex) {
-			fragment.appendChild(
-				document.createTextNode(text.slice(lastIndex, match.from))
-			);
+		if (match.from > cursor) {
+			fragment.appendChild(document.createTextNode(text.slice(cursor, match.from)));
 		}
-
-		// Add color element
 		fragment.appendChild(createColorElement(match.color, settings));
-
-		lastIndex = match.to;
+		cursor = match.to;
 	}
 
-	// Add remaining text
-	if (lastIndex < text.length) {
-		fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
+	if (cursor < text.length) {
+		fragment.appendChild(document.createTextNode(text.slice(cursor)));
 	}
 
-	// Replace the text node with the fragment
-	textNode.parentNode?.replaceChild(fragment, textNode);
+	node.parentNode?.replaceChild(fragment, node);
 }
 
-/**
- * Collect all text nodes that need processing
- */
-function collectTextNodes(element: HTMLElement): Text[] {
+// Public API
+export function processReadingView(root: HTMLElement, settings: ColorPreviewSettings): void {
+	cleanupExistingPreviews(root);
+
+	// Collect all text nodes before touching the DOM, mutating the tree
+	// while a TreeWalker is active causes nodes to be skipped.
 	const textNodes: Text[] = [];
-	const walker = document.createTreeWalker(
-		element,
-		NodeFilter.SHOW_TEXT,
-		{
-			acceptNode: (node) => {
-				return shouldProcessNode(node)
-					? NodeFilter.FILTER_ACCEPT
-					: NodeFilter.FILTER_REJECT;
-			},
-		}
-	);
+	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+		acceptNode: (node) =>
+			shouldProcessNode(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT,
+	});
 
-	let node: Node | null;
-	while ((node = walker.nextNode())) {
-		textNodes.push(node as Text);
+	let n: Node | null;
+	while ((n = walker.nextNode())) {
+		textNodes.push(n as Text);
 	}
 
-	return textNodes;
-}
-
-/**
- * Process reading view to add color previews
- */
-export function processReadingView(
-	element: HTMLElement,
-	settings: ColorPreviewSettings
-): void {
-	// Clean up any existing previews first
-	cleanupExistingPreviews(element);
-
-	// Collect text nodes to process
-	const textNodes = collectTextNodes(element);
-
-	// Process each text node
-	for (const textNode of textNodes) {
+	// Now mutate
+	for (const node of textNodes) {
 		try {
-			processTextNode(textNode, settings);
-		} catch (error) {
-			console.error('ColorPreview: Error processing text node', error);
+			processTextNode(node, settings);
+		} catch (err) {
+			console.error('ColorPreview: Error processing text node', err);
 		}
 	}
 }
 
-/**
- * Clear all color previews from an element
- */
-export function clearReadingView(element: HTMLElement): void {
-	cleanupExistingPreviews(element);
+export function clearReadingView(root: HTMLElement): void {
+	cleanupExistingPreviews(root);
 }
