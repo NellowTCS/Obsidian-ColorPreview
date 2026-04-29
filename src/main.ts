@@ -1,110 +1,59 @@
 import { Plugin, MarkdownPostProcessorContext } from 'obsidian';
 import { ColorPreviewSettings, DEFAULT_SETTINGS } from './types';
 import { createColorPreviewExtension } from './editor/editorExtension';
-import { processReadingView, clearReadingView } from './reading/readingViewProcessor';
+import { processReadingView } from './reading/readingViewProcessor';
 import { ColorPreviewSettingTab } from './ui/settingsTab';
 
 export default class ColorPreviewPlugin extends Plugin {
 	settings: ColorPreviewSettings = { ...DEFAULT_SETTINGS };
 
-	/**
-	 * Plugin initialization
-	 */
 	async onload(): Promise<void> {
-		console.log('Loading Color Preview plugin');
-
 		await this.loadSettings();
 
-		// Register editor extension for live preview
-		// Pass the settings object directly - it will be read reactively
+		// Live preview / source mode
 		this.registerEditorExtension(
 			createColorPreviewExtension(() => this.settings)
 		);
 
-		// Register markdown post-processor for reading view
+		// Obsidian calls this once per block-level element. We hand each block to
+		// a MarkdownRenderChild so Obsidian manages the mount/unmount lifecycle.
 		this.registerMarkdownPostProcessor(
-			(element: HTMLElement, _context: MarkdownPostProcessorContext) => {
+			(element: HTMLElement, context: MarkdownPostProcessorContext) => {
 				if (this.settings.enableInReadingView) {
-					processReadingView(element, this.settings);
+					processReadingView(element, context, this.settings);
 				}
 			}
 		);
 
-		// Add settings tab
 		this.addSettingTab(new ColorPreviewSettingTab(this.app, this));
 	}
 
-	/**
-	 * Plugin cleanup
-	 */
 	onunload(): void {
-		console.log('Unloading Color Preview plugin');
+		// all registered extensions and post-processors are
+		// cleaned up automatically by the Plugin base class.
 	}
 
-	/**
-	 * Load plugin settings
-	 */
 	async loadSettings(): Promise<void> {
-		const data = await this.loadData();
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, data);
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
 	}
 
-	/**
-	 * Save plugin settings and refresh views
-	 */
 	async saveSettings(): Promise<void> {
-		console.log('ColorPreview: Saving settings', this.settings);
 		await this.saveData(this.settings);
-		
-		// Force refresh of all editor views
-		this.refreshEditorViews();
 
-		// Refresh reading views with a small delay
-		setTimeout(() => {
-			this.refreshReadingViews();
-		}, 100);
-	}
-
-	/**
-	 * Force refresh of all CodeMirror editor views
-	 */
-	private refreshEditorViews(): void {
+		// Refresh editor views so the new settings take effect immediately.
 		this.app.workspace.iterateAllLeaves((leaf) => {
-			const view = leaf.view;
-			
-			if (view.getViewType() === 'markdown') {
-				const markdownView = view as any;
-				
-				if (markdownView.editor?.cm) {
-					const cm = markdownView.editor.cm;
-					
-					// Force a full viewport update
-					cm.requestMeasure();
-					
-					// Dispatch an empty transaction to trigger decoration rebuild
-					cm.dispatch({
-						effects: [],
-					});
-				}
+			const view = leaf.view as any;
+			if (view?.getViewType?.() === 'markdown' && view?.editor?.cm) {
+				view.editor.cm.dispatch({});
 			}
 		});
-	}
 
-	/**
-	 * Refresh all reading view elements
-	 */
-	private refreshReadingViews(): void {
-		const readingViews = document.querySelectorAll('.markdown-preview-view');
-
-		readingViews.forEach((element) => {
-			const htmlElement = element as HTMLElement;
-			
-			// Clear existing previews
-			clearReadingView(htmlElement);
-
-			// Re-process if enabled
-			if (this.settings.enableInReadingView) {
-				processReadingView(htmlElement, this.settings);
+		// Reading view: re-opening the note re-runs the post-processor naturally.
+		// For an immediate refresh without closing the note, re-render the preview.
+		this.app.workspace.iterateAllLeaves((leaf) => {
+			const view = leaf.view as any;
+			if (view?.getViewType?.() === 'markdown' && view?.previewMode) {
+				view.previewMode.rerender(true);
 			}
 		});
 	}
