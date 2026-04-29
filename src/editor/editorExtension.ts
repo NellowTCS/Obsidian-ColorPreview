@@ -8,138 +8,137 @@ import {
 	MatchDecorator,
 	PluginValue,
 } from '@codemirror/view';
-import { RangeSet } from '@codemirror/state';
 import { hasGoodContrast } from '../utils/colorParser';
 import type { ColorPreviewSettings } from '../types';
 
-// Combined color regex
-// MatchDecorator needs its own RegExp
-// instance (it mutates lastIndex internally).
+// Regex source
 const HEX_SRC = /#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})(?![0-9a-fA-F])/;
 const RGB_SRC = /rgba?\(\s*(?:25[0-5]|2[0-4]\d|1?\d{1,2})\s*,\s*(?:25[0-5]|2[0-4]\d|1?\d{1,2})\s*,\s*(?:25[0-5]|2[0-4]\d|1?\d{1,2})(?:\s*,\s*(?:0|1|0?\.\d+))?\s*\)/;
 const HSL_SRC = /hsla?\(\s*(?:36[0]|3[0-5]\d|[12]?\d{1,2})\s*,\s*(?:100|\d{1,2})%\s*,\s*(?:100|\d{1,2})%(?:\s*,\s*(?:0|1|0?\.\d+))?\s*\)/;
 const COMBINED_SRC = [HEX_SRC, RGB_SRC, HSL_SRC].map(r => r.source).join('|');
 
+// ColorWidget
+class ColorWidget extends WidgetType {
+	constructor(
+		readonly color: string,
+		readonly originalText: string,
+		readonly showSwatch: boolean,
+		readonly colorizeText: boolean,
+	) { super(); }
 
-// Swatch widget
-class ColorSwatchWidget extends WidgetType {
-	constructor(readonly color: string) { super(); }
-
-	toDOM(): HTMLElement {
-		const el = document.createElement('span');
-		el.className = 'cp-color-swatch';
-		el.style.backgroundColor = this.color;
-		el.setAttribute('aria-label', `Color: ${this.color}`);
-		return el;
+	eq(other: ColorWidget): boolean {
+		return (
+			this.color === other.color &&
+			this.originalText === other.originalText &&
+			this.showSwatch === other.showSwatch &&
+			this.colorizeText === other.colorizeText
+		);
 	}
 
-	eq(other: ColorSwatchWidget): boolean { return this.color === other.color; }
-	ignoreEvent(): boolean { return true; }
+	toDOM(): HTMLElement {
+		const wrapper = document.createElement('span');
+		wrapper.className = 'cp-color-inline';
+		// Let CM6 know this widget represents the replaced text, for a11y
+		wrapper.setAttribute('aria-label', `Color: ${this.color}`);
+
+		if (this.showSwatch) {
+			const swatch = document.createElement('span');
+			swatch.className = 'cp-color-swatch';
+			swatch.style.backgroundColor = this.color;
+			wrapper.appendChild(swatch);
+		}
+
+		const label = document.createElement('span');
+		label.textContent = this.originalText;
+
+		const canColorize = this.colorizeText && hasGoodContrast(this.color);
+		if (canColorize) {
+			label.className = 'cp-colored-text';
+			label.style.color = this.color;
+		}
+
+		wrapper.appendChild(label);
+		return wrapper;
+	}
+
+	ignoreEvent(): boolean { return false; }
 }
 
-
-// MatchDecorator factories
-function makeSwatchDecorator(): MatchDecorator {
+// MatchDecorator factory
+function makeDecorator(settings: ColorPreviewSettings): MatchDecorator {
 	return new MatchDecorator({
 		regexp: new RegExp(COMBINED_SRC, 'gi'),
-		decoration: (match) =>
-			Decoration.widget({
-				widget: new ColorSwatchWidget(match[0]),
-				side: -1, // insert before the matched text
-			}),
-	});
-}
-
-function makeMarkDecorator(): MatchDecorator {
-	return new MatchDecorator({
-		regexp: new RegExp(COMBINED_SRC, 'gi'),
-		// Return null (cast) to skip colors with poor contrast
 		decoration: (match) => {
 			const color = match[0];
-			if (!hasGoodContrast(color)) return null as unknown as Decoration;
-			return Decoration.mark({
-				class: 'cp-colored-text',
-				attributes: { style: `color: ${color} !important;`, 'data-color': color },
+			return Decoration.replace({
+				widget: new ColorWidget(
+					color,
+					match[0],
+					settings.showSwatchInEditor,
+					settings.colorizeTextInEditor,
+				),
 			});
 		},
 	});
 }
 
-
 // ViewPlugin
 class ColorPreviewPlugin implements PluginValue {
 	decorations: DecorationSet;
-
-	private swatchDeco: MatchDecorator | null = null;
-	private markDeco: MatchDecorator | null = null;
-	private swatchSet: DecorationSet = Decoration.none;
-	private markSet: DecorationSet = Decoration.none;
-	private lastSettingsKey = '';
+	private decorator: MatchDecorator;
+	private lastSettingsKey: string;
 
 	constructor(
 		private readonly view: EditorView,
 		private readonly getSettings: () => ColorPreviewSettings,
 	) {
-		this.initialize(view);
-		this.decorations = this.merged();
+		const s = this.getSettings();
+		this.lastSettingsKey = this.settingsKey(s);
+		this.decorator = makeDecorator(s);
+		this.decorations = this.decorator.createDeco(view);
 	}
 
 	update(update: ViewUpdate): void {
 		const s = this.getSettings();
-		const key = `${s.showSwatchInEditor}|${s.colorizeTextInEditor}`;
-		const settingsChanged = key !== this.lastSettingsKey;
+		const key = this.settingsKey(s);
 
-		if (settingsChanged) {
-			// Settings changed — recreate decorators and rebuild from scratch.
-			this.initialize(update.view);
+		if (key !== this.lastSettingsKey) {
+			// Settings changed — new decorator needed (widget params changed)
+			this.lastSettingsKey = key;
+			this.decorator = makeDecorator(s);
+			this.decorations = this.decorator.createDeco(update.view);
 		} else if (update.docChanged || update.viewportChanged) {
-			// Incremental update — MatchDecorator.updateDeco() only rescans
-			// changed/newly visible ranges, reusing everything else.
-			if (this.swatchDeco) {
-				this.swatchSet = this.swatchDeco.updateDeco(update, this.swatchSet);
-			}
-			if (this.markDeco) {
-				this.markSet = this.markDeco.updateDeco(update, this.markSet);
-			}
-		} else {
-			return; // nothing to do
+			// Incremental update — reuse existing decorations where unchanged
+			this.decorations = this.decorator.updateDeco(update, this.decorations);
 		}
-
-		this.decorations = this.merged();
 	}
 
-	private initialize(view: EditorView): void {
-		const s = this.getSettings();
-		this.lastSettingsKey = `${s.showSwatchInEditor}|${s.colorizeTextInEditor}`;
-
-		this.swatchDeco = s.showSwatchInEditor ? makeSwatchDecorator() : null;
-		this.markDeco = s.colorizeTextInEditor ? makeMarkDecorator() : null;
-
-		this.swatchSet = this.swatchDeco
-			? this.swatchDeco.createDeco(view)
-			: Decoration.none;
-		this.markSet = this.markDeco
-			? this.markDeco.createDeco(view)
-			: Decoration.none;
-	}
-
-	// Merge the two DecorationSets into one.
-	private merged(): DecorationSet {
-		if (this.swatchSet === Decoration.none) return this.markSet;
-		if (this.markSet === Decoration.none) return this.swatchSet;
-		return RangeSet.join([this.swatchSet, this.markSet]) as DecorationSet;
+	private settingsKey(s: ColorPreviewSettings): string {
+		return `${s.showSwatchInEditor}|${s.colorizeTextInEditor}`;
 	}
 
 	destroy(): void { /* nothing to clean up */ }
 }
 
-
 // Public factory
 export function createColorPreviewExtension(getSettings: () => ColorPreviewSettings) {
 	return ViewPlugin.fromClass(
-		class extends ColorPreviewPlugin {
-			constructor(view: EditorView) { super(view, getSettings); }
+		class implements PluginValue {
+			decorations: DecorationSet;
+			private inner: ColorPreviewPlugin;
+
+			constructor(view: EditorView) {
+				this.inner = new ColorPreviewPlugin(view, getSettings);
+				this.decorations = this.inner.decorations;
+			}
+
+			update(update: ViewUpdate) {
+				this.inner.update(update);
+				this.decorations = this.inner.decorations;
+			}
+
+			destroy() { this.inner.destroy(); }
 		},
-		{ decorations: (plugin) => plugin.decorations }
+		{ decorations: v => v.decorations }
 	);
 }
