@@ -1,4 +1,7 @@
 {
   "projectName": "Obsidian-ColorPreview",
   "projectOwner": "NellowTCS",
+  "repoType": "github",
+  "repoHost": "https://github.com",
+  "files": ["README.md"]
 }
