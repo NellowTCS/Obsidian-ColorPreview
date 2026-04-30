@@ -1,116 +1,108 @@
 .cp-color-swatch {
-  display: inline-block;
-  width: 0.9em;
-  height: 0.9em;
-  border-radius: 3px;
-  margin-right: 0.35em;
-  border: 1px solid var(--background-modifier-border);
-  vertical-align: -0.1em;
-  flex-shrink: 0;
-  cursor: help;
-  transition: transform 0.15s ease-in-out, box-shadow 0.15s ease-in-out, border-color 0.15s ease-in-out;
-  box-shadow:
-    inset 0 0 0 1px rgba(0, 0, 0, 0.08),
-    0 1px 2px rgba(0, 0, 0, 0.05);
+	display: inline-block;
+	width: 0.9em;
+	height: 0.9em;
+	border-radius: 3px;
+	margin-right: 0.35em;
+	border: 1px solid var(--background-modifier-border);
+	vertical-align: -0.1em;
+	flex-shrink: 0;
+	cursor: help;
+	background-color: var(--cp-swatch-color, transparent);
+	transition:
+		transform 0.15s ease-in-out,
+		box-shadow 0.15s ease-in-out,
+		border-color 0.15s ease-in-out;
+	box-shadow:
+		inset 0 0 0 1px rgba(0, 0, 0, 0.08),
+		0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .cp-color-swatch:hover {
-  transform: scale(1.15);
-  border-color: var(--interactive-accent);
-  box-shadow:
-    inset 0 0 0 1px rgba(0, 0, 0, 0.1),
-    0 2px 4px rgba(0, 0, 0, 0.1);
+	transform: scale(1.15);
+	border-color: var(--interactive-accent);
+	box-shadow:
+		inset 0 0 0 1px rgba(0, 0, 0, 0.1),
+		0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .cp-color-swatch:focus-visible {
-  outline: 2px solid var(--interactive-accent);
-  outline-offset: 2px;
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 2px;
+}
+
+.cp-colored-text {
+	font-weight: 500;
+	color: var(--cp-text-color, inherit);
 }
 
 .cp-color-inline {
-  display: inline-flex;
-  align-items: center;
-  cursor: text;
-  white-space: nowrap;
+	display: inline-flex;
+	align-items: center;
+	cursor: text;
+	white-space: nowrap;
 }
 
-/* Keep swatch vertically aligned inside the inline widget */
 .cp-color-inline .cp-color-swatch {
-  vertical-align: -0.1em;
+	vertical-align: -0.1em;
 }
 
 .cp-color-wrapper {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25em;
-  white-space: nowrap;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25em;
+	white-space: nowrap;
 }
 
 .cp-color-wrapper .cp-colored-text,
 .cp-color-wrapper span:not(.cp-color-swatch) {
-  white-space: nowrap;
+	white-space: nowrap;
 }
 
-.cp-colored-text {
-  font-weight: 500;
-}
-
-/* Ensure extreme values don't vanish against the background */
-.cp-colored-text[data-color="#ffffff"],
-.cp-colored-text[data-color="#fff"],
-.cp-colored-text[data-color="white"],
-.cp-colored-text[data-color="#000000"],
-.cp-colored-text[data-color="#000"],
-.cp-colored-text[data-color="black"] {
-  color: var(--text-normal) !important;
-  text-decoration: underline dotted var(--text-muted);
-}
-
-/* Dark mode overrides */
 .theme-dark .cp-color-swatch {
-  border-color: var(--background-modifier-border-hover);
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
-    0 1px 2px rgba(0, 0, 0, 0.3);
+	border-color: var(--background-modifier-border-hover);
+	box-shadow:
+		inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+		0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .theme-dark .cp-color-swatch:hover {
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.15),
-    0 2px 4px rgba(0, 0, 0, 0.4);
+	box-shadow:
+		inset 0 0 0 1px rgba(255, 255, 255, 0.15),
+		0 2px 4px rgba(0, 0, 0, 0.4);
 }
 
-/* Light mode overrides */
 .theme-light .cp-color-swatch {
-  box-shadow:
-    inset 0 0 0 1px rgba(0, 0, 0, 0.08),
-    0 1px 2px rgba(0, 0, 0, 0.05);
+	box-shadow:
+		inset 0 0 0 1px rgba(0, 0, 0, 0.08),
+		0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .theme-light .cp-color-swatch:hover {
-  box-shadow:
-    inset 0 0 0 1px rgba(0, 0, 0, 0.12),
-    0 2px 4px rgba(0, 0, 0, 0.08);
+	transform: scale(1.15);
+	box-shadow:
+		inset 0 0 0 1px rgba(0, 0, 0, 0.12),
+		0 2px 4px rgba(0, 0, 0, 0.08);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cp-color-swatch {
-    transition: none;
-  }
+	.cp-color-swatch {
+		transition: none;
+	}
 
-  .cp-color-swatch:hover {
-    transform: none;
-  }
+	.cp-color-swatch:hover {
+		transform: none;
+	}
 }
 
 @media print {
-  .cp-color-swatch {
-    border: 1px solid #000;
-    box-shadow: none;
-  }
+	.cp-color-swatch {
+		border: 1px solid #000;
+		box-shadow: none;
+	}
 
-  .cp-colored-text {
-    color: inherit !important;
-    font-weight: normal;
-  }
+	.cp-colored-text {
+		color: inherit !important;
+		font-weight: normal;
+	}
 }

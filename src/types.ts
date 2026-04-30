@@ -6,10 +6,10 @@
 export interface ColorPreviewSettings {
 	/** Show color swatch in editor */
 	showSwatchInEditor: boolean;
-	
+
 	/** Colorize the text itself in editor */
 	colorizeTextInEditor: boolean;
-	
+
 	/** Enable color previews in reading view */
 	enableInReadingView: boolean;
 }
@@ -26,14 +26,14 @@ export const DEFAULT_SETTINGS: ColorPreviewSettings = {
 /**
  * Constants
  */
-export const PLUGIN_NAME = 'Color Preview';
-export const PLUGIN_ID = 'color-preview';
+export const PLUGIN_NAME = "Color Preview";
+export const PLUGIN_ID = "color-preview";
 
 /**
  * CSS class names
  */
 export const CSS_CLASSES = {
-	swatch: 'cp-color-swatch',
-	coloredText: 'cp-colored-text',
-	wrapper: 'cp-color-wrapper',
+	swatch: "cp-color-swatch",
+	coloredText: "cp-colored-text",
+	wrapper: "cp-color-wrapper",
 } as const;

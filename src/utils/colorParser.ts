@@ -17,12 +17,15 @@ const HSL_PATTERN =
 
 const COMBINED_SOURCE = [HEX_PATTERN, RGB_PATTERN, HSL_PATTERN]
 	.map((r) => r.source)
-	.join('|');
+	.join("|");
 
 // Parsing
 function parseHex(hex: string): [number, number, number, number] | null {
 	const h = hex.slice(1);
-	let r: number, g: number, b: number, a = 255;
+	let r: number,
+		g: number,
+		b: number,
+		a = 255;
 	if (h.length === 3) {
 		r = parseInt(h[0] + h[0], 16);
 		g = parseInt(h[1] + h[1], 16);
@@ -54,21 +57,28 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
 	const a = s * Math.min(l, 1 - l);
 	const f = (n: number) =>
 		l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
-	return [Math.round(f(0) * 255), Math.round(f(8) * 255), Math.round(f(4) * 255)];
+	return [
+		Math.round(f(0) * 255),
+		Math.round(f(8) * 255),
+		Math.round(f(4) * 255),
+	];
 }
 
-function colorToRgba(colorStr: string): [number, number, number, number] | null {
+function colorToRgba(
+	colorStr: string,
+): [number, number, number, number] | null {
 	const s = colorStr.trim();
+	if (!s) return null;
 
-	if (s.startsWith('#')) return parseHex(s);
+	if (s.startsWith("#")) return parseHex(s);
 
 	const funcMatch = s.match(/^(rgba?|hsla?)\(\s*([^)]+)\)/i);
 	if (!funcMatch) return null;
 
 	const fn = funcMatch[1].toLowerCase();
-	const parts = funcMatch[2].split(',').map((p) => p.trim());
+	const parts = funcMatch[2].split(",").map((p) => p.trim());
 
-	if (fn === 'rgb' || fn === 'rgba') {
+	if (fn === "rgb" || fn === "rgba") {
 		const r = parseInt(parts[0]);
 		const g = parseInt(parts[1]);
 		const b = parseInt(parts[2]);
@@ -77,7 +87,7 @@ function colorToRgba(colorStr: string): [number, number, number, number] | null 
 		return [r, g, b, a];
 	}
 
-	if (fn === 'hsl' || fn === 'hsla') {
+	if (fn === "hsl" || fn === "hsla") {
 		const h = parseFloat(parts[0]);
 		const s2 = parseFloat(parts[1]);
 		const l2 = parseFloat(parts[2]);
@@ -91,16 +101,43 @@ function colorToRgba(colorStr: string): [number, number, number, number] | null 
 	return null;
 }
 
-// Reads --background-primary off document.body, which is set by whatever
-// Obsidian theme is active. Falls back to white if unreadable.
-function getThemeBackground(): [number, number, number] {
-	const raw = getComputedStyle(document.body)
-		.getPropertyValue('--background-primary')
-		.trim();
-	const rgba = colorToRgba(raw);
-	return rgba ? [rgba[0], rgba[1], rgba[2]] : [255, 255, 255];
+// Theme background
+let cachedBg: [number, number, number] | null = null;
+let cacheScheduled = false;
+
+function invalidateBgCache() {
+	cachedBg = null;
+	cacheScheduled = false;
 }
 
+function getThemeBackground(): [number, number, number] {
+	if (cachedBg) return cachedBg;
+
+	const raw = getComputedStyle(document.body)
+		.getPropertyValue("--background-primary")
+		.trim();
+
+	const parsed = colorToRgba(raw);
+
+	if (parsed) {
+		cachedBg = [parsed[0], parsed[1], parsed[2]];
+	} else {
+		// --background-primary uses a format we can't parse (oklch, color-mix, etc.)
+		// Fall back to theme class detection.
+		const isDark = document.body.classList.contains("theme-dark");
+		cachedBg = isDark ? [30, 30, 30] : [255, 255, 255];
+	}
+
+	// Invalidate once per frame so theme switches are picked up promptly
+	if (!cacheScheduled) {
+		cacheScheduled = true;
+		requestAnimationFrame(invalidateBgCache);
+	}
+
+	return cachedBg;
+}
+
+// WCAG contrast
 function toLinear(c: number): number {
 	const s = c / 255;
 	return s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
@@ -112,7 +149,7 @@ function relativeLuminance(r: number, g: number, b: number): number {
 
 function contrastRatio(
 	[r1, g1, b1]: [number, number, number],
-	[r2, g2, b2]: [number, number, number]
+	[r2, g2, b2]: [number, number, number],
 ): number {
 	const l1 = relativeLuminance(r1, g1, b1);
 	const l2 = relativeLuminance(r2, g2, b2);
@@ -134,10 +171,9 @@ export function isValidColor(colorStr: string): boolean {
 	return colorToRgba(colorStr) !== null;
 }
 
-// Match finder
 export function findColorsInText(text: string, startOffset = 0): ColorMatch[] {
 	const matches: ColorMatch[] = [];
-	const regex = new RegExp(COMBINED_SOURCE, 'gi');
+	const regex = new RegExp(COMBINED_SOURCE, "gi");
 
 	let match: RegExpExecArray | null;
 	while ((match = regex.exec(text)) !== null) {
