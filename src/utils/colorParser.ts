@@ -113,7 +113,7 @@ function invalidateBgCache() {
 function getThemeBackground(): [number, number, number] {
 	if (cachedBg) return cachedBg;
 
-	const raw = getComputedStyle(document.body)
+	const raw = getComputedStyle(window.activeDocument.body)
 		.getPropertyValue("--background-primary")
 		.trim();
 
@@ -124,7 +124,8 @@ function getThemeBackground(): [number, number, number] {
 	} else {
 		// --background-primary uses a format we can't parse (oklch, color-mix, etc.)
 		// Fall back to theme class detection.
-		const isDark = document.body.classList.contains("theme-dark");
+		const isDark =
+			window.activeDocument.body.classList.contains("theme-dark");
 		cachedBg = isDark ? [30, 30, 30] : [255, 255, 255];
 	}
 

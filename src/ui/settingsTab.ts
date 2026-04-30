@@ -44,7 +44,7 @@ export class ColorPreviewSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Enable in reading view")
-			.setDesc("Show color previews when viewing rendered markdown")
+			.setDesc("Show color previews when viewing rendered Markdown")
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.enableInReadingView)
@@ -59,7 +59,7 @@ export class ColorPreviewSettingTab extends PluginSettingTab {
 			.setHeading();
 
 		new Setting(containerEl).setDesc(
-			"HEX: #RGB, #RRGGBB, #RGBA, #RRGGBBAA · RGB/RGBA: rgb(255, 0, 0) · HSL/HSLA: hsl(120, 100%, 50%)",
+			"Hex: #RGB, #rrggbb, #rgba, #rrggbbaa · rgb/rgba: rgb(255, 0, 0) · hsl/hsla: hsl(120, 100%, 50%)",
 		);
 	}
 }

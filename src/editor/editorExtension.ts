@@ -41,18 +41,18 @@ class ColorWidget extends WidgetType {
 	}
 
 	toDOM(): HTMLElement {
-		const wrapper = document.createElement("span");
+		const wrapper = window.activeDocument.createSpan();
 		wrapper.className = "cp-color-inline";
 		wrapper.setAttribute("aria-label", `Color: ${this.color}`);
 
 		if (this.showSwatch) {
-			const swatch = document.createElement("span");
+			const swatch = window.activeDocument.createSpan();
 			swatch.className = "cp-color-swatch";
 			swatch.setCssProps({ "--cp-swatch-color": this.color });
 			wrapper.appendChild(swatch);
 		}
 
-		const label = document.createElement("span");
+		const label = window.activeDocument.createSpan();
 		label.textContent = this.originalText;
 
 		if (this.colorizeText && hasGoodContrast(this.color)) {

@@ -23,7 +23,9 @@ class ColorSpanChild extends MarkdownRenderChild {
 			.querySelectorAll(".cp-color-wrapper")
 			.forEach((wrapper) => {
 				wrapper.replaceWith(
-					document.createTextNode(wrapper.textContent ?? ""),
+					window.activeDocument.createTextNode(
+						wrapper.textContent ?? "",
+					),
 				);
 			});
 		this.containerEl.normalize();
@@ -31,20 +33,25 @@ class ColorSpanChild extends MarkdownRenderChild {
 
 	private collectTextNodes(root: HTMLElement): Text[] {
 		const nodes: Text[] = [];
-		const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-			acceptNode: (node) => {
-				if (!node.nodeValue?.trim()) return NodeFilter.FILTER_REJECT;
-				if ((node as Text).parentElement?.closest("code, pre"))
-					return NodeFilter.FILTER_REJECT;
-				if (
-					(node as Text).parentElement?.classList.contains(
-						"cp-color-wrapper",
+		const walker = window.activeDocument.createTreeWalker(
+			root,
+			NodeFilter.SHOW_TEXT,
+			{
+				acceptNode: (node) => {
+					if (!node.nodeValue?.trim())
+						return NodeFilter.FILTER_REJECT;
+					if ((node as Text).parentElement?.closest("code, pre"))
+						return NodeFilter.FILTER_REJECT;
+					if (
+						(node as Text).parentElement?.classList.contains(
+							"cp-color-wrapper",
+						)
 					)
-				)
-					return NodeFilter.FILTER_REJECT;
-				return NodeFilter.FILTER_ACCEPT;
+						return NodeFilter.FILTER_REJECT;
+					return NodeFilter.FILTER_ACCEPT;
+				},
 			},
-		});
+		);
 		let n: Node | null;
 		while ((n = walker.nextNode())) nodes.push(n as Text);
 		return nodes;
@@ -55,38 +62,42 @@ class ColorSpanChild extends MarkdownRenderChild {
 		const matches = findColorsInText(text);
 		if (matches.length === 0) return;
 
-		const fragment = document.createDocumentFragment();
+		const fragment = window.activeDocument.createDocumentFragment();
 		let cursor = 0;
 
 		for (const match of matches) {
 			if (match.from > cursor) {
 				fragment.appendChild(
-					document.createTextNode(text.slice(cursor, match.from)),
+					window.activeDocument.createTextNode(
+						text.slice(cursor, match.from),
+					),
 				);
 			}
 			fragment.appendChild(this.createColorElement(match.color));
 			cursor = match.to;
 		}
 		if (cursor < text.length) {
-			fragment.appendChild(document.createTextNode(text.slice(cursor)));
+			fragment.appendChild(
+				window.activeDocument.createTextNode(text.slice(cursor)),
+			);
 		}
 
 		node.parentNode?.replaceChild(fragment, node);
 	}
 
 	private createColorElement(color: string): HTMLElement {
-		const wrapper = document.createElement("span");
+		const wrapper = window.activeDocument.createSpan();
 		wrapper.className = "cp-color-wrapper";
 
 		if (this.settings.showSwatchInEditor) {
-			const swatch = document.createElement("span");
+			const swatch = window.activeDocument.createSpan();
 			swatch.className = "cp-color-swatch";
 			swatch.setAttribute("aria-label", `Color: ${color}`);
 			swatch.setCssProps({ "--cp-swatch-color": color });
 			wrapper.appendChild(swatch);
 		}
 
-		const label = document.createElement("span");
+		const label = window.activeDocument.createSpan();
 		label.textContent = color;
 
 		if (this.settings.colorizeTextInEditor && hasGoodContrast(color)) {
