@@ -1,6 +1,6 @@
 # Obsidian-ColorPreview
 
-[![GitHub contributors from allcontributors.org](https://img.shields.io/github/all-contributors/NellowTCS/Obsidian-ColorPreview)](#contributors)
+[![All Contributors](https://img.shields.io/github/all-contributors/NellowTCS/Obsidian-ColorPreview?color=ee8449&style=flat-square)](#contributors)
 ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/NellowTCS/Obsidian-ColorPreview/release.yml)
 ![GitHub License](https://img.shields.io/github/license/NellowTCS/Obsidian-ColorPreview)
 
