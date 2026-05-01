@@ -113,7 +113,8 @@ function invalidateBgCache() {
 function getThemeBackground(): [number, number, number] {
 	if (cachedBg) return cachedBg;
 
-	const raw = getComputedStyle(window.activeDocument.body)
+	// eslint-disable-next-line obsidianmd/prefer-active-doc
+	const raw = getComputedStyle(document.body)
 		.getPropertyValue("--background-primary")
 		.trim();
 
@@ -122,14 +123,12 @@ function getThemeBackground(): [number, number, number] {
 	if (parsed) {
 		cachedBg = [parsed[0], parsed[1], parsed[2]];
 	} else {
-		// --background-primary uses a format we can't parse (oklch, color-mix, etc.)
-		// Fall back to theme class detection.
-		const isDark =
-			window.activeDocument.body.classList.contains("theme-dark");
+		// Unparseable format (oklch, color-mix, etc.)
+		// eslint-disable-next-line obsidianmd/prefer-active-doc
+		const isDark = document.body.classList.contains("theme-dark");
 		cachedBg = isDark ? [30, 30, 30] : [255, 255, 255];
 	}
 
-	// Invalidate once per frame so theme switches are picked up promptly
 	if (!cacheScheduled) {
 		cacheScheduled = true;
 		requestAnimationFrame(invalidateBgCache);
@@ -159,7 +158,6 @@ function contrastRatio(
 	return (lighter + 0.05) / (darker + 0.05);
 }
 
-// Returns true if the color is distinct enough from the current theme
 export function hasGoodContrast(colorStr: string): boolean {
 	const rgba = colorToRgba(colorStr);
 	if (!rgba) return false;

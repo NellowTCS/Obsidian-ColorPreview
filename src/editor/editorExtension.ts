@@ -40,19 +40,22 @@ class ColorWidget extends WidgetType {
 		);
 	}
 
-	toDOM(): HTMLElement {
-		const wrapper = window.activeDocument.createSpan();
+	toDOM(view: EditorView): HTMLElement {
+		// Use the editor's own document
+		const doc = view.dom.ownerDocument;
+
+		const wrapper = doc.createElement("span");
 		wrapper.className = "cp-color-inline";
 		wrapper.setAttribute("aria-label", `Color: ${this.color}`);
 
 		if (this.showSwatch) {
-			const swatch = window.activeDocument.createSpan();
+			const swatch = doc.createElement("span");
 			swatch.className = "cp-color-swatch";
 			swatch.setCssProps({ "--cp-swatch-color": this.color });
 			wrapper.appendChild(swatch);
 		}
 
-		const label = window.activeDocument.createSpan();
+		const label = doc.createElement("span");
 		label.textContent = this.originalText;
 
 		if (this.colorizeText && hasGoodContrast(this.color)) {
@@ -85,7 +88,6 @@ function makeDecorator(settings: ColorPreviewSettings): MatchDecorator {
 	});
 }
 
-// ViewPlugin
 export function createColorPreviewExtension(
 	getSettings: () => ColorPreviewSettings,
 ) {

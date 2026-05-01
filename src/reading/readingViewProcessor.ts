@@ -23,7 +23,10 @@ class ColorSpanChild extends MarkdownRenderChild {
 			.querySelectorAll(".cp-color-wrapper")
 			.forEach((wrapper) => {
 				wrapper.replaceWith(
-					window.activeDocument.createTextNode(
+					// ownerDocument targets the element's own window; correct for
+					// pop-out windows. prefer-active-doc doesn't recognise this pattern.
+					// eslint-disable-next-line obsidianmd/prefer-active-doc
+					(wrapper.ownerDocument ?? document).createTextNode(
 						wrapper.textContent ?? "",
 					),
 				);
@@ -31,27 +34,29 @@ class ColorSpanChild extends MarkdownRenderChild {
 		this.containerEl.normalize();
 	}
 
+	private get doc(): Document {
+		// ownerDocument of the container is always the right document for the
+		// window this element lives in
+		// eslint-disable-next-line obsidianmd/prefer-active-doc
+		return this.containerEl.ownerDocument ?? document;
+	}
+
 	private collectTextNodes(root: HTMLElement): Text[] {
 		const nodes: Text[] = [];
-		const walker = window.activeDocument.createTreeWalker(
-			root,
-			NodeFilter.SHOW_TEXT,
-			{
-				acceptNode: (node) => {
-					if (!node.nodeValue?.trim())
-						return NodeFilter.FILTER_REJECT;
-					if ((node as Text).parentElement?.closest("code, pre"))
-						return NodeFilter.FILTER_REJECT;
-					if (
-						(node as Text).parentElement?.classList.contains(
-							"cp-color-wrapper",
-						)
+		const walker = this.doc.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+			acceptNode: (node) => {
+				if (!node.nodeValue?.trim()) return NodeFilter.FILTER_REJECT;
+				if ((node as Text).parentElement?.closest("code, pre"))
+					return NodeFilter.FILTER_REJECT;
+				if (
+					(node as Text).parentElement?.classList.contains(
+						"cp-color-wrapper",
 					)
-						return NodeFilter.FILTER_REJECT;
-					return NodeFilter.FILTER_ACCEPT;
-				},
+				)
+					return NodeFilter.FILTER_REJECT;
+				return NodeFilter.FILTER_ACCEPT;
 			},
-		);
+		});
 		let n: Node | null;
 		while ((n = walker.nextNode())) nodes.push(n as Text);
 		return nodes;
@@ -62,42 +67,38 @@ class ColorSpanChild extends MarkdownRenderChild {
 		const matches = findColorsInText(text);
 		if (matches.length === 0) return;
 
-		const fragment = window.activeDocument.createDocumentFragment();
+		const fragment = this.doc.createDocumentFragment();
 		let cursor = 0;
 
 		for (const match of matches) {
 			if (match.from > cursor) {
 				fragment.appendChild(
-					window.activeDocument.createTextNode(
-						text.slice(cursor, match.from),
-					),
+					this.doc.createTextNode(text.slice(cursor, match.from)),
 				);
 			}
 			fragment.appendChild(this.createColorElement(match.color));
 			cursor = match.to;
 		}
 		if (cursor < text.length) {
-			fragment.appendChild(
-				window.activeDocument.createTextNode(text.slice(cursor)),
-			);
+			fragment.appendChild(this.doc.createTextNode(text.slice(cursor)));
 		}
 
 		node.parentNode?.replaceChild(fragment, node);
 	}
 
 	private createColorElement(color: string): HTMLElement {
-		const wrapper = window.activeDocument.createSpan();
+		const wrapper = this.doc.createElement("span");
 		wrapper.className = "cp-color-wrapper";
 
 		if (this.settings.showSwatchInEditor) {
-			const swatch = window.activeDocument.createSpan();
+			const swatch = this.doc.createElement("span");
 			swatch.className = "cp-color-swatch";
 			swatch.setAttribute("aria-label", `Color: ${color}`);
 			swatch.setCssProps({ "--cp-swatch-color": color });
 			wrapper.appendChild(swatch);
 		}
 
-		const label = window.activeDocument.createSpan();
+		const label = this.doc.createElement("span");
 		label.textContent = color;
 
 		if (this.settings.colorizeTextInEditor && hasGoodContrast(color)) {
