@@ -23,10 +23,7 @@ class ColorSpanChild extends MarkdownRenderChild {
 			.querySelectorAll(".cp-color-wrapper")
 			.forEach((wrapper) => {
 				wrapper.replaceWith(
-					// ownerDocument targets the element's own window; correct for
-					// pop-out windows. prefer-active-doc doesn't recognise this pattern.
-					// eslint-disable-next-line obsidianmd/prefer-active-doc
-					(wrapper.ownerDocument ?? document).createTextNode(
+					(wrapper.ownerDocument ?? window.activeDocument).createTextNode(
 						wrapper.textContent ?? "",
 					),
 				);
@@ -37,8 +34,7 @@ class ColorSpanChild extends MarkdownRenderChild {
 	private get doc(): Document {
 		// ownerDocument of the container is always the right document for the
 		// window this element lives in
-		// eslint-disable-next-line obsidianmd/prefer-active-doc
-		return this.containerEl.ownerDocument ?? document;
+		return this.containerEl.ownerDocument ?? window.activeDocument;
 	}
 
 	private collectTextNodes(root: HTMLElement): Text[] {

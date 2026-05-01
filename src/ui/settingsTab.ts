@@ -59,7 +59,7 @@ export class ColorPreviewSettingTab extends PluginSettingTab {
 			.setHeading();
 
 		new Setting(containerEl).setDesc(
-			"Hex: #RGB, #rrggbb, #rgba, #rrggbbaa · rgb/rgba: rgb(255, 0, 0) · hsl/hsla: hsl(120, 100%, 50%)",
+			"Supported formats: hex (#rgb, #rrggbb, #rgba, #rrggbbaa), rgb/rgba (rgb(255, 0, 0)), and hsl/hsla (hsl(120, 100%, 50%)).",
 		);
 	}
 }
