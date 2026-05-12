@@ -129,7 +129,7 @@ function getThemeBackground(): [number, number, number] {
 
 	if (!cacheScheduled) {
 		cacheScheduled = true;
-		requestAnimationFrame(invalidateBgCache);
+		window.requestAnimationFrame(invalidateBgCache);
 	}
 
 	return cachedBg;
