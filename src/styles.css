@@ -97,7 +97,7 @@
 
 @media print {
 	.cp-color-swatch {
-		border: 1px solid #000;
+		border: 1px solid #000000;
 		box-shadow: none;
 	}
 
