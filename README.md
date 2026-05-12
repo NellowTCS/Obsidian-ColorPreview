@@ -4,7 +4,8 @@
 ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/NellowTCS/Obsidian-IroView/release.yml)
 ![GitHub License](https://img.shields.io/github/license/NellowTCS/Obsidian-IroView)
 
-Preview HEX, HSL, and RGB colors directly in your Obsidian notes, just like VSCode's color preview.
+Preview HEX, HSL, and RGB colors directly in your Obsidian notes, just like VSCode's color preview.  
+Available on [Obsidian](https://community.obsidian.md/plugins/iroview)!
 
 ## Features
 
