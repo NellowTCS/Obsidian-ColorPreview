@@ -41,7 +41,32 @@ And see a color preview appear inline!
 
 ## Installation
 
-(WIP)
+### Direct (Recommended)
+
+You can install **IroView** directly from Obsidian’s Community Plugins browser (or online [here](https://community.obsidian.md/plugins/iroview)).
+
+1. Open **Settings -> Community Plugins**  
+2. Make sure **Restricted Mode** is off  
+3. Click **Browse**  
+4. Search for **“IroView”**  
+5. Click **Install**, then **Enable**
+
+### Manual
+
+If you prefer installing manually:
+
+1. Download the latest release from the repo’s **Releases** page  
+   - You need:  
+     - `main.js`  
+     - `manifest.json`  
+     - `styles.css` (if present)
+2. Create a folder in your vault:  
+   ```
+   .obsidian/plugins/iroview
+   ```
+3. Place all downloaded files inside that folder  
+4. Restart Obsidian  
+5. Go to **Settings -> Community Plugins** and enable **IroView**
 
 ## Technical Details
 
