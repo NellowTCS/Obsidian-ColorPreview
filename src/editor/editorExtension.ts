@@ -9,7 +9,7 @@ import {
 	PluginValue,
 } from "@codemirror/view";
 import { hasGoodContrast } from "../utils/colorParser";
-import type { ColorPreviewSettings } from "../types";
+import type { IroViewSettings } from "../types";
 
 // Regex
 const HEX_SRC =
@@ -73,7 +73,7 @@ class ColorWidget extends WidgetType {
 }
 
 // MatchDecorator
-function makeDecorator(settings: ColorPreviewSettings): MatchDecorator {
+function makeDecorator(settings: IroViewSettings): MatchDecorator {
 	return new MatchDecorator({
 		regexp: new RegExp(COMBINED_SRC, "gi"),
 		decoration: (match) =>
@@ -88,8 +88,8 @@ function makeDecorator(settings: ColorPreviewSettings): MatchDecorator {
 	});
 }
 
-export function createColorPreviewExtension(
-	getSettings: () => ColorPreviewSettings,
+export function createIroViewExtension(
+	getSettings: () => IroViewSettings,
 ) {
 	return ViewPlugin.fromClass(
 		class implements PluginValue {

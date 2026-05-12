@@ -1,10 +1,10 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
-import type ColorPreviewPlugin from "../main";
+import type IroViewPlugin from "../main";
 
-export class ColorPreviewSettingTab extends PluginSettingTab {
+export class IroViewSettingTab extends PluginSettingTab {
 	constructor(
 		app: App,
-		private readonly plugin: ColorPreviewPlugin,
+		private readonly plugin: IroViewPlugin,
 	) {
 		super(app, plugin);
 	}

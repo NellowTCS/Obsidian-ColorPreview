@@ -1,18 +1,18 @@
 import { Plugin, MarkdownView, MarkdownPostProcessorContext } from "obsidian";
-import { ColorPreviewSettings, DEFAULT_SETTINGS } from "./types";
-import { createColorPreviewExtension } from "./editor/editorExtension";
+import { IroViewSettings, DEFAULT_SETTINGS } from "./types";
+import { createIroViewExtension } from "./editor/editorExtension";
 import { processReadingView } from "./reading/readingViewProcessor";
-import { ColorPreviewSettingTab } from "./ui/settingsTab";
+import { IroViewSettingTab } from "./ui/settingsTab";
 import type { EditorView } from "@codemirror/view";
 
-export default class ColorPreviewPlugin extends Plugin {
-	settings: ColorPreviewSettings = { ...DEFAULT_SETTINGS };
+export default class IroViewPlugin extends Plugin {
+	settings: IroViewSettings = { ...DEFAULT_SETTINGS };
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
 
 		this.registerEditorExtension(
-			createColorPreviewExtension(() => this.settings),
+			createIroViewExtension(() => this.settings),
 		);
 
 		this.registerMarkdownPostProcessor(
@@ -23,14 +23,14 @@ export default class ColorPreviewPlugin extends Plugin {
 			},
 		);
 
-		this.addSettingTab(new ColorPreviewSettingTab(this.app, this));
+		this.addSettingTab(new IroViewSettingTab(this.app, this));
 	}
 
 	async loadSettings(): Promise<void> {
 		this.settings = Object.assign(
 			{},
 			DEFAULT_SETTINGS,
-			(await this.loadData()) as Partial<ColorPreviewSettings>,
+			(await this.loadData()) as Partial<IroViewSettings>,
 		);
 	}
 

@@ -1,8 +1,8 @@
-# Obsidian-ColorPreview
+# Obsidian-IroView
 
-[![All Contributors](https://img.shields.io/github/all-contributors/NellowTCS/Obsidian-ColorPreview?color=ee8449&style=flat-square)](#contributors)
-![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/NellowTCS/Obsidian-ColorPreview/release.yml)
-![GitHub License](https://img.shields.io/github/license/NellowTCS/Obsidian-ColorPreview)
+[![All Contributors](https://img.shields.io/github/all-contributors/NellowTCS/Obsidian-IroView?color=ee8449&style=flat-square)](#contributors)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/NellowTCS/Obsidian-IroView/release.yml)
+![GitHub License](https://img.shields.io/github/license/NellowTCS/Obsidian-IroView)
 
 Preview HEX, HSL, and RGB colors directly in your Obsidian notes, just like VSCode's color preview.
 
@@ -51,11 +51,11 @@ And see a color preview appear inline!
 
 ## Star History
 
-<a href="https://www.star-history.com/#NellowTCS/Obsidian-ColorPreview&Date">
+<a href="https://www.star-history.com/#NellowTCS/Obsidian-IroView&Date">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=NellowTCS/Obsidian-ColorPreview&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=NellowTCS/Obsidian-ColorPreview&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=NellowTCS/Obsidian-ColorPreview&type=Date" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=NellowTCS/Obsidian-IroView&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=NellowTCS/Obsidian-IroView&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=NellowTCS/Obsidian-IroView&type=Date" />
  </picture>
 </a>
 

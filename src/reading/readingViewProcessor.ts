@@ -1,12 +1,12 @@
 import { MarkdownRenderChild } from "obsidian";
 import { findColorsInText, hasGoodContrast } from "../utils/colorParser";
-import type { ColorPreviewSettings } from "../types";
+import type { IroViewSettings } from "../types";
 import type { MarkdownPostProcessorContext } from "obsidian";
 
 class ColorSpanChild extends MarkdownRenderChild {
 	constructor(
 		containerEl: HTMLElement,
-		private readonly settings: ColorPreviewSettings,
+		private readonly settings: IroViewSettings,
 	) {
 		super(containerEl);
 	}
@@ -110,7 +110,7 @@ class ColorSpanChild extends MarkdownRenderChild {
 export function processReadingView(
 	element: HTMLElement,
 	context: MarkdownPostProcessorContext,
-	settings: ColorPreviewSettings,
+	settings: IroViewSettings,
 ): void {
 	context.addChild(new ColorSpanChild(element, settings));
 }

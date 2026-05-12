@@ -3,7 +3,7 @@
 /**
  * Plugin settings interface
  */
-export interface ColorPreviewSettings {
+export interface IroViewSettings {
 	/** Show color swatch in editor */
 	showSwatchInEditor: boolean;
 
@@ -17,7 +17,7 @@ export interface ColorPreviewSettings {
 /**
  * Default settings
  */
-export const DEFAULT_SETTINGS: ColorPreviewSettings = {
+export const DEFAULT_SETTINGS: IroViewSettings = {
 	showSwatchInEditor: true,
 	colorizeTextInEditor: false,
 	enableInReadingView: true,
@@ -26,8 +26,8 @@ export const DEFAULT_SETTINGS: ColorPreviewSettings = {
 /**
  * Constants
  */
-export const PLUGIN_NAME = "Color Preview";
-export const PLUGIN_ID = "color-preview";
+export const PLUGIN_NAME = "IroView";
+export const PLUGIN_ID = "iroview";
 
 /**
  * CSS class names
